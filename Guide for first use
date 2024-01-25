@@ -1,6 +1,8 @@
 # Open-Source-Toolbox-for-Photographic-Estimation-of-Propagation-Loss
 This repository contains a python script for scattering analysis of waveguide structures to be used with any USB camera driver.
 
-A step-by-step guide for first time use of the script can be seen below:
+A step-by-step guide for first time use of the script can be seen below. Also see example.py.
 
-The scattering analysis is all contained within the SPA class. The function require four optimizable parameters, the left/right indentation, num_neighbors and rows. The class will itself suggest optimized parameters based on a provided image, alternatively these parameters may also be entered manually.
+The scattering analysis is all contained within the SPA class. The spa.analyse_image function require four hyper parameters, the left/right indentation, num_neighbors and rows.
+By providing an image and running the functions find_optimal_left_indent, find_optimal_right_indent and find_optimal_sum_width, an estimated optimal value will be provided. Alternatively, these values can manually be input.
+
