@@ -18,9 +18,9 @@ def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
 
-path = 'E:/Top_Down_Method/'
+path = 'D:/Top_Down_Method/'
 f_ending = '.bmp'
-contains = '2023-12-07_wavelength_sweep_IRFilter_945nm_optimized_1_ST3_width_1350nm_TE  _2'
+contains = '2023-11-30_wavelength_sweep_IRFilter_ST3_width_1450nm_TE_2'
 
 
 
@@ -42,7 +42,7 @@ test_path = list(image_path_dict.keys())[0]
 image = Image.open(path + test_path + "/" + image_path_dict[test_path][0])
 
 chip_length = 4870
-spa = SPA(True,chip_length) #set flag to False to turn off plotting,
+spa = SPA(False,chip_length) #set flag to False to turn off plotting,
 
 left_indent = 200
 right_indent = 300
@@ -58,7 +58,8 @@ choice = input("q for quit enter to continue: ")
 if choice == "q":
     print("Exiting code")
 else:
-    spa.show_plots = True
+    spa.show_plots = False
+    counter = 0
     for key in image_path_dict.keys():
         print(key)
         files = image_path_dict[key]
@@ -90,6 +91,8 @@ else:
                                                                      IQR_neighbor_removal)
                 alpha, rsquared, x, y, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt, sum_width_opt,
                                                           IQR_neighbor_removal)
+                print(str(counter)+ ",  Indent: "+ str(left_indent_opt) + ",  Alpha: " +str(np.round(alpha,1)) + ' dB/cm')
+                counter = counter + 1
             except:
                 traceback.print_exc()
                 print("Error")
