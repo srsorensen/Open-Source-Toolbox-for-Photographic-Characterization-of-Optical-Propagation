@@ -50,7 +50,7 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
         for i in range(len(weights)):
             series = pd.Series(weights[i], index=data_wav[i])
             dataframe_weights = pd.concat([dataframe_weights, series.to_frame().T], ignore_index=True)
-        print(dataframe_weights)
+        #print(dataframe_weights)
         # dataframe.loc[:,cutlist[0]:cutlist[1]] = dataframe.loc[:,cutlist[0]:cutlist[1]].dropna(axis=1)
         dataframe = dataframe.dropna(axis=1)
         dataframe_weights = dataframe_weights.dropna(axis=1)
@@ -77,8 +77,8 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 
-directory = "E:/Top_Down_Method/"
-contains = "980nm_optimized_ST3_width_1600nm_TE_1_100"
+directory = "E:/Top_Down_Method/direc/"
+contains = "1_ST3_width_1350nm_TE_1"
 f_ending = ".h5"
 
 polarization_plot_dict = {"TM": "b-", "TE": "r-"}
@@ -97,12 +97,16 @@ TM_dict = {}
 
 for file in os.listdir(directory):
     if contains.lower() in file.lower() and f_ending.lower() in file.lower():
-        print(file)
+        #print(file)
         hf = h5py.File(directory + file, 'r')
         wav_nm = np.array(hf.get('wavelength'))
         weights = np.array(hf.get('alpha_variance'))
+        left_indent = np.array(hf.get('left_indent'))
+        sum_width = np.array(hf.get('sum_width'))
+        r_squared = np.array(hf.get('r_squared'))
+
         # print(weights)
-        # print(wav_nm)
+        #print(wav_nm)
         alphas = np.array(hf.get('alpha'))
 
         y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
@@ -117,8 +121,10 @@ for file in os.listdir(directory):
             TM_wav.append(([float(x.decode()) for x in wav_nm]))
         hf.close()
 
-directory = "E:/Top_Down_Method/"
-contains = "980nm_optimized_ST3_width_1600nm_TE_1_200"
+
+
+directory = "E:/Top_Down_Method/direc/"
+contains = "1_ST3_width_1350nm_TE_2"
 f_ending = ".h5"
 
 
@@ -137,10 +143,13 @@ TM_dict = {}
 
 for file in os.listdir(directory):
     if contains.lower() in file.lower() and f_ending.lower() in file.lower():
-        #print(file)
+       #print(file)
         hf = h5py.File(directory + file, 'r')
         wav_nm = np.array(hf.get('wavelength'))
-        weights = np.array(hf.get('alpha_variance'))
+        weights1 = np.array(hf.get('alpha_variance'))
+        left_indent1 = np.array(hf.get('left_indent'))
+        sum_width1 = np.array(hf.get('sum_width'))
+        r_squared1 = np.array(hf.get('r_squared'))
         # print(weights)
         # print(wav_nm)
         alphas = np.array(hf.get('alpha'))
@@ -150,14 +159,15 @@ for file in os.listdir(directory):
             TE_data1.append(list(y_savgol))
             TE_weights1.append(weights)
             TE_wav1.append(([float(x.decode()) for x in wav_nm]))
+
         else:
             TM_data1.append(list(y_savgol))
             TM_weights1.append(weights)
             TM_wav1.append(([float(x.decode()) for x in wav_nm]))
         hf.close()
 
-directory = "E:/Top_Down_Method/"
-contains = "980nm_optimized_ST3_width_1600nm_TE_1_300"
+directory = "E:/Top_Down_Method/direc/"
+contains = "1_ST3_width_1350nm_TE_3"
 f_ending = ".h5"
 
 
@@ -176,27 +186,31 @@ TM_dict = {}
 
 for file in os.listdir(directory):
     if contains.lower() in file.lower() and f_ending.lower() in file.lower():
-        #print(file)
+       #print(file)
         hf = h5py.File(directory + file, 'r')
         wav_nm = np.array(hf.get('wavelength'))
-        weights = np.array(hf.get('alpha_variance'))
-        # print(weights)
-        # print(wav_nm)
+        weights2 = np.array(hf.get('alpha_variance'))
+        left_indent2 = np.array(hf.get('left_indent'))
+        sum_width2 = np.array(hf.get('sum_width'))
+        r_squared2 = np.array(hf.get('r_squared'))
+       # print(weights)
+       # print(wav_nm)
         alphas = np.array(hf.get('alpha'))
         y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
-        # polarization = get_polarization_name(file)
+       # polarization = get_polarization_name(file)
         if "TE" in file:
             TE_data2.append(list(y_savgol))
             TE_weights2.append(weights)
             TE_wav2.append(([float(x.decode()) for x in wav_nm]))
+
         else:
             TM_data2.append(list(y_savgol))
             TM_weights2.append(weights)
             TM_wav2.append(([float(x.decode()) for x in wav_nm]))
         hf.close()
 
-directory = "E:/Top_Down_Method/"
-contains = "980nm_optimized_ST3_width_1600nm_TE_1_opt"
+directory = "E:/Top_Down_Method/direc/"
+contains = "2_ST3_width_1350nm_TE_1"
 f_ending = ".h5"
 
 
@@ -218,21 +232,50 @@ for file in os.listdir(directory):
         #print(file)
         hf = h5py.File(directory + file, 'r')
         wav_nm = np.array(hf.get('wavelength'))
-        weights = np.array(hf.get('alpha_variance'))
-        # print(weights)
-        # print(wav_nm)
+        weights3 = np.array(hf.get('alpha_variance'))
+        r_squared3 = np.array(hf.get('r_squared'))
+        left_indent3 = np.array(hf.get('left_indent'))
+        sum_width3 = np.array(hf.get('sum_width'))
         alphas = np.array(hf.get('alpha'))
         y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
-        # polarization = get_polarization_name(file)
+       # polarization = get_polarization_name(file)
         if "TE" in file:
             TE_data3.append(list(y_savgol))
             TE_weights3.append(weights)
             TE_wav3.append(([float(x.decode()) for x in wav_nm]))
+
         else:
             TM_data3.append(list(y_savgol))
             TM_weights3.append(weights)
             TM_wav3.append(([float(x.decode()) for x in wav_nm]))
         hf.close()
+plot_fontsize = 16
+wavelengths = np.round(np.arange(9100, 9801, 1)*0.1, 2)
+plt.scatter(wavelengths,left_indent,label="Raw alpha")
+plt.scatter(wavelengths,left_indent1,label="Smoothed alpha")
+plt.scatter(wavelengths,left_indent2,label="LI restricted")
+plt.scatter(wavelengths,left_indent3,label="Sum+LI restricted")
+plt.xlabel("Wavelength (nm)", fontsize = plot_fontsize)
+plt.ylabel("Left indent (# of pixels)", fontsize = plot_fontsize)
+#plt.legend()
+plt.show()
+plt.scatter(wavelengths,sum_width,label="Raw")
+plt.scatter(wavelengths,sum_width1,label="Smoothed alpha")
+plt.scatter(wavelengths,sum_width2,label="LI restricted")
+plt.scatter(wavelengths,sum_width3,label="Sum+LI restricted")
+plt.xlabel("Wavelength (nm)", fontsize = plot_fontsize)
+plt.ylabel("Sum width (# of pixels)", fontsize = plot_fontsize)
+#plt.legend()
+plt.show()
+
+plt.scatter(wavelengths,r_squared,label="Raw")
+plt.scatter(wavelengths,r_squared1,label="Smoothed alpha")
+plt.scatter(wavelengths,r_squared2,label="LI restricted")
+plt.scatter(wavelengths,r_squared3,label="Sum+LI restricted")
+plt.xlabel("Wavelength (nm)", fontsize = plot_fontsize)
+plt.ylabel("R\u00b2", fontsize = plot_fontsize)
+#plt.legend()
+plt.show()
 
 plt.figure(figsize=(10, 6))
 
@@ -243,49 +286,51 @@ dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 # TM_wav[2] = TM_wav[2][:451]
 
 # print([len(x) for x in TM_data20mW])
-
+plot_fontsize = 16
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_data, TE_wav, "TE", "b", [910, 980.1],TE_weights)
 te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE","b",[910,980.1],TE_weights1)
 te_dataframe2, te_mean2, te_std2 = plot_polarization_data(dataframe_wav,TE_data2,TE_wav2,"TE","b",[910,980.1],TE_weights2)
 te_dataframe3, te_mean3, te_std3 = plot_polarization_data(dataframe_wav,TE_data3,TE_wav3,"TE","b",[910,980.1],TE_weights3)
 tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_data, TM_wav, "TM", "r", [910, 980.1],TM_weights)
-tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM","r",[910,980.1],TM_weights1)
-tm_dataframe2, tm_mean2, tm_std2 = plot_polarization_data(dataframe_wav,TM_data2,TM_wav2,"TM","b",[910,980.1],TM_weights2)
-tm_dataframe3, tm_mean3, tm_std3 = plot_polarization_data(dataframe_wav,TM_data3,TM_wav3,"TM","b",[910,980.1],TM_weights3)
+#tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM","r",[910,980.1],TM_weights1)
+#tm_dataframe2, tm_mean2, tm_std2 = plot_polarization_data(dataframe_wav,TM_data2,TM_wav2,"TM","b",[910,980.1],TM_weights2)
+#tm_dataframe3, tm_mean3, tm_std3 = plot_polarization_data(dataframe_wav,TM_data3,TM_wav3,"TM","b",[910,980.1],TM_weights3)
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
 plt.legend(by_label.values(), by_label.keys())
 
 plt.figure(figsize=(10, 6))
 
-te_max = te_dataframe.idxmax(axis=1)
-tm_max = tm_dataframe.idxmax(axis=1)
-
+#te_max = te_dataframe.idxmax(axis=1)
+#tm_max = tm_dataframe.idxmax(axis=1)
+#print("910: ",te_mean[910],"$\\pm$",te_std[910])
+#print("945: ",te_mean[945],"$\\pm$",te_std[945])
+#print("980: ",te_mean[980],"$\\pm$",te_std[980])
 if not te_dataframe.empty:
-    plt.plot(te_mean.index, te_mean, label="100 left indent")
-    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2, label="Confidence band")
-    plt.plot(te_mean1.index, te_mean1, label="200 left indent")
-    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2, label="Confidence band")
-    plt.plot(te_mean2.index, te_mean2, label="300 left indent")
-    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2,label="Confidence band")
-    plt.plot(te_mean3.index, te_mean3, label="Optimized left indent")
+    plt.plot(te_mean.index, te_mean, label="Smoothed alpha with left indent [0:400], sum width [30:100]")
+    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2)
+    plt.plot(te_mean1.index, te_mean1, label="Smooth data")
+    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2)
+    plt.plot(te_mean2.index, te_mean2, label="Smoothed dat with left indent [100:400]")
+    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2)
+    plt.plot(te_mean3.index, te_mean3, label="Smoothed data with sum width [30:100]")
     plt.fill_between(te_mean3.index, te_mean3 - te_std3, te_mean3 + te_std3, alpha=0.2)
     #plt.axvline(max(te_max), color='r', linestyle='--', label='Mean: ' + str(round(max(te_max), 1)) + 'nm')
-    plt.xlabel("Wavelength (nm)")
-    plt.ylabel("Alpha (dB/cm)")
-    plt.legend()
+    plt.xlabel("Wavelength (nm)",fontsize = plot_fontsize)
+    plt.ylabel("Alpha (dB/cm)",fontsize = plot_fontsize)
+#    plt.legend(fontsize=14)
     # plt.xlim([938,980])
 
 if not tm_dataframe.empty:
     plt.figure(figsize=(10, 6))
-    plt.plot(tm_mean.index, tm_mean, label="100 left indent")
-    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2)
-    plt.plot(tm_mean1.index, tm_mean1, label="200 left indent")
-    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2)
-    plt.plot(tm_mean2.index, tm_mean2, label="300 left indent")
-    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2)
-    plt.plot(tm_mean3.index, tm_mean3, label="Optimized left indent")
-    plt.fill_between(tm_mean3.index, tm_mean3 - tm_std3, tm_mean3 + tm_std3, alpha=0.2)
+    plt.plot(tm_mean.index, tm_mean, label="Dynamic left indent and sum width optimization")
+#    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2)
+#    plt.plot(tm_mean1.index, tm_mean1, label="200 left indent")
+#    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2)
+#    plt.plot(tm_mean2.index, tm_mean2, label="300 left indent")
+#    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2)
+#    plt.plot(tm_mean3.index, tm_mean3, label="Optimized left indent")
+#    plt.fill_between(tm_mean3.index, tm_mean3 - tm_std3, tm_mean3 + tm_std3, alpha=0.2)
     #plt.axvline(max(tm_max), color='r', linestyle='--', label='Mean: ' + str(round(max(tm_max), 1)) + 'nm')
     plt.xlabel("Wavelength (nm)")
     plt.ylabel("Alpha (dB/cm)")
