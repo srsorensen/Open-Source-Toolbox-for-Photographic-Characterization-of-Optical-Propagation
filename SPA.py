@@ -131,30 +131,11 @@ class SPA:
             raise Exception("Specify input side 'left', 'right', 'flip'")
 
         return image
-    
-    
-    def find_minimum_area_under_points(self,alpha_values, indents, w):
-        #Finds the index with the minimum area under the points
-        smoothed = savgol_filter(alpha_values,w,1,mode="nearest")
-        
-        diff_indexes = np.where(np.abs(np.diff(smoothed)) < 1)[0] 
-        area_under_curve = smoothed[diff_indexes]*indents[diff_indexes]
-        minimum_indent = diff_indexes[np.argmin(area_under_curve)]
 
-        if self.show_plots:
-            plt.figure(figsize=(10,6))
-            plt.plot(indents,alpha_values)
-            plt.plot(indents,smoothed)
-            plt.axvline(indents[minimum_indent], color = 'r', linestyle = "dashed", label = "minimum_index")
-            plt.xlabel("Left indent", fontsize = 16)
-            plt.ylabel("$\\alpha$ (dB/cm)", fontsize = 16)
-            plt.legend(["$\\alpha$ values","Smoothed alpha values", "Optimal indent: " + str(indents[minimum_indent])])
-            plt.title(f"Left indent convergence with optimal indent: {indents[minimum_indent]}", fontsize = 16)
-        return indents[minimum_indent]
 
 
     def find_optimal_left_indent(self,image, right_indent ,waveguide_sum_width ,IQR_neighbor_removal):
-        left_indents = np.arange(0,500,10)
+        left_indents = np.arange(100,400,10)
         converge_alpha_left_indent = []
         plot_state = self.show_plots
         if plot_state:
@@ -163,10 +144,13 @@ class SPA:
             alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image,left_indents[i],right_indent,waveguide_sum_width,IQR_neighbor_removal)
             converge_alpha_left_indent.append(alpha_dB)
         self.show_plots = plot_state
-        return self.find_minimum_area_under_points(converge_alpha_left_indent,left_indents,5)
+        smoothed_alpha = savgol_filter(converge_alpha_left_indent,5,1,mode="nearest")
+        index_min = np.argmin(smoothed_alpha)
+
+        return left_indents[index_min]
 
     def find_optimal_right_indent(self,image, left_indent ,waveguide_sum_width ,IQR_neighbor_removal):
-        right_indents = np.arange(0,500,10)
+        right_indents = np.arange(100,400,10)
         converge_alpha_right_indent = []
         plot_state = self.show_plots
         if plot_state:
@@ -175,22 +159,22 @@ class SPA:
             alpha_dB, r_squared, x_raw, y_raw, alpha_dB_variance = self.analyze_image(image,left_indent,right_indents[i],waveguide_sum_width,IQR_neighbor_removal)
             converge_alpha_right_indent.append(alpha_dB)
         self.show_plots = plot_state
-        index_min = np.argmin(converge_alpha_right_indent)
         smoothed = savgol_filter(converge_alpha_right_indent, 5, 1, mode="nearest")
-        if self.show_plots:
-            plt.figure(figsize=(10,6))
-            plt.plot(right_indents,converge_alpha_right_indent)
-            plt.plot(right_indents,smoothed)
-            plt.axvline(right_indents[index_min], color = 'r', linestyle = "dashed", label = "minimum_index")
-            plt.xlabel("Right indent", fontsize = 16)
-            plt.ylabel("$\\alpha$ (dB/cm)", fontsize = 16)
-            plt.legend(["$\\alpha$ values","Smoothed alpha values", "Optimal indent: "+str(right_indents[index_min])])
-            plt.title(f"Right indent convergence with optimal indent: " + str(right_indents[index_min]), fontsize = 16)
+        index_min = np.argmin(smoothed)
+#        if self.show_plots:
+#            plt.figure(figsize=(10,6))
+#            plt.plot(right_indents,converge_alpha_right_indent)
+#            plt.plot(right_indents,smoothed)
+#            plt.axvline(right_indents[index_min], color = 'r', linestyle = "dashed", label = "minimum_index")
+#            plt.xlabel("Right indent", fontsize = 16)
+#            plt.ylabel("$\\alpha$ (dB/cm)", fontsize = 16)
+#            plt.legend(["$\\alpha$ values","Smoothed alpha values", "Optimal indent: "+str(right_indents[index_min])])
+#            plt.title(f"Right indent convergence with optimal indent: " + str(right_indents[index_min]), fontsize = 16)
         return right_indents[index_min]
     
     
     def find_optimal_waveguide_sum_width(self,image, left_indent, right_indent,IQR_neighbor_removal):
-        rows = np.arange(30,200,10)
+        rows = np.arange(30,100,10)
         converge_alpha_left_indent = []
         r_squared_list = []
         
@@ -220,7 +204,6 @@ class SPA:
             ax2.set_ylabel("R squared", fontsize = 16)
             ax1.legend(loc=2)
             ax2.legend(loc=1)
-        
         return optimal_width
         
     
