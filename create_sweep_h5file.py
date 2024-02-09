@@ -18,9 +18,9 @@ def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
 
-path = 'E:/Top_Down_Method/'
+path = 'D:/Top_Down_Method/direc/Converge/'
 f_ending = '.bmp'
-contains = '2023-12-07_wavelength_sweep_IRFilter_945nm_optimized'
+contains = 'ST3'
 
 
 
@@ -110,7 +110,7 @@ else:
                 wavelengths.append(wavelength)
                 r_squared_values.append(rsquared)
                 left_indent_sweep.append(left_indent_opt)
-                #right_indent_sweep.append(right_indent_opt)
+                right_indent_sweep.append(right_indent_opt)
                 sum_width_sweep.append(sum_width_opt)
 
 
