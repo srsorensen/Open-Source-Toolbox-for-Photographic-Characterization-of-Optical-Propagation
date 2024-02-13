@@ -132,7 +132,32 @@ class SPA:
 
         return image
 
-    def optimize_parameter(self,indents,converge_alpha, parameter="left indent"):
+    def optimize_parameter(self,parameter,image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal):
+        plot_state = self.show_plots
+        if plot_state:
+            self.show_plots = False
+        converge_alpha = []
+        if parameter == "left indent":
+            indents = np.arange(201, 501, 2)
+            for i in range(len(indents)):
+                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,waveguide_sum_width, IQR_neighbor_removal)
+                converge_alpha.append(alpha_dB)
+
+        elif parameter == "right indent":
+            indents = np.arange(150, 450, 2)
+            for i in range(len(indents)):
+                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indent,indents[i],waveguide_sum_width,IQR_neighbor_removal)
+                converge_alpha.append(alpha_dB)
+
+        elif parameter == "sum width":
+            indents = np.arange(40, 200, 1)
+            for i in range(len(indents)):
+                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indent,right_indent, indents[i],IQR_neighbor_removal)
+                converge_alpha.append(alpha_dB)
+
+        else:
+            raise Exception("Specify parameter 'left indent', 'right indent' or 'sum width'")
+
         dI = indents[1] - indents[0]
         smoothed_alpha = savgol_filter(converge_alpha, 4, 1, mode="nearest")
         alpha_indent = np.gradient(smoothed_alpha, dI)
@@ -151,7 +176,6 @@ class SPA:
                         index_min.append(i)
             abs_tol = abs_tol + 0.01
 
-        # print(left_indents[index_min])
         num_neighbors = 5
         point_mean = []
         for index in index_min:
@@ -162,150 +186,17 @@ class SPA:
         absolute_point_mean = [abs(num) for num in point_mean]
         min_point_mean = point_mean.index(min(absolute_point_mean))
         ideal_indent = indents[index_min[min_point_mean]]
-
-        if parameter == "Left indent":
-            label = "Left indent"
-
-        elif parameter == "Right indent":
-            label = "Right indent"
-
-        elif parameter == "Sum width":
-            label = "Sum width"
-
         self.show_plots = plot_state
-
         if self.show_plots:
             plt.figure(figsize=(10, 6))
             plt.plot(indents, alpha_indent)
             plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
-            plt.xlabel(label)
+            plt.xlabel(parameter)
             plt.ylabel("$d\\alpha$/d(indent)")
             plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)])
-            plt.title(label + " convergence with optimal indent: " + str(ideal_indent))
+            plt.title(parameter + " convergence with optimal indent: " + str(ideal_indent))
+            plt.show()
 
-        return ideal_indent
-
-    def find_optimal_left_indent(self, image, right_indent, waveguide_sum_width, IQR_neighbor_removal):
-        left_indents = np.arange(201, 501, 2)
-        converge_alpha_left_indent = []
-        plot_state = self.show_plots
-        if plot_state:
-            self.show_plots = False
-        for i in range(len(left_indents)):
-            alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indents[i],
-                                                                                      right_indent, waveguide_sum_width,
-                                                                                      IQR_neighbor_removal)
-            converge_alpha_left_indent.append(alpha_dB)
-        ideal_indent = optimize_parameter(self, left_indents, converge_alpha_left_indent, parameter="left indent")
-
-        return ideal_indent
-
-    def find_optimal_right_indent(self, image, left_indent, waveguide_sum_width, IQR_neighbor_removal):
-        right_indents = np.arange(150, 450, 2)
-        converge_alpha_right_indent = []
-        plot_state = self.show_plots
-        if plot_state:
-            self.show_plots = False
-        for i in range(len(right_indents)):
-            alpha_dB, r_squared, x_raw, y_raw, alpha_dB_variance = self.analyze_image(image, left_indent,
-                                                                                      right_indents[i],
-                                                                                      waveguide_sum_width,
-                                                                                      IQR_neighbor_removal)
-            converge_alpha_right_indent.append(alpha_dB)
-        self.show_plots = plot_state
-        dI = right_indents[1] - right_indents[0]
-        smoothed_alpha = savgol_filter(converge_alpha_right_indent,4,1,mode="nearest")
-        alpha_indent = np.gradient(smoothed_alpha, dI)
-        index_min = []
-        abs_tol = 0.01
-        while abs_tol < 0.9:
-            if len(index_min) == 0:
-                zero_gradient_minus = []
-                zero_gradient_plus = []
-                for i in range(len(right_indents) - 1):
-                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
-                    zero_gradient_minus.append(zero_gradient_m)
-                    zero_gradient_plus.append(zero_gradient_p)
-                    if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
-                        index_min.append(i)
-            abs_tol = abs_tol + 0.01
-#        print(right_indents[index_min])
-        num_neighbors = 10
-        point_mean = []
-        for index in index_min:
-            neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
-            point_m = np.mean(alpha_indent[neighbor_indexes])
-            point_mean.append(point_m)
-        close_zero = point_mean.index(self.closest(point_mean, 0))
-        ideal_indent = right_indents[index_min[close_zero]]
-
-        if self.show_plots:
-            plt.figure(figsize=(10, 6))
-            plt.plot(right_indents,converge_alpha_right_indent)
-#            plt.plot(right_indents, smoothed_alpha_indent)
-            plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
-            plt.xlabel("Right indent")
-            plt.ylabel("$d\\alpha$/d(indent)")
-            plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)])
-            plt.title(f"Right indent convergence with optimal indent: " + str(ideal_indent))
-        return ideal_indent
-
-    def find_optimal_waveguide_sum_width(self, image, left_indent, right_indent, IQR_neighbor_removal):
-        rows = np.arange(40, 200, 1)
-        converge_alpha_left_indent = []
-        r_squared_list = []
-
-        plot_state = self.show_plots
-        if plot_state:
-            self.show_plots = False
-
-        for i in range(len(rows)):
-            alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indent, right_indent,
-                                                                                      rows[i], IQR_neighbor_removal)
-            converge_alpha_left_indent.append(alpha_dB)
-            r_squared_list.append(r_squared)
-
-        self.show_plots = plot_state
-        dI = rows[1] - rows[0]
-        smoothed_alpha = savgol_filter(converge_alpha_left_indent,4,1,mode="nearest")
-        alpha_indent = np.gradient(smoothed_alpha, dI)
-        index_min = []
-        abs_tol = 0.01
-        while abs_tol < 0.9:
-            if len(index_min) == 0:
-                zero_gradient_minus = []
-                zero_gradient_plus = []
-                for i in range(len(rows) - 1):
-                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
-                    zero_gradient_minus.append(zero_gradient_m)
-                    zero_gradient_plus.append(zero_gradient_p)
-                    if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
-                        index_min.append(i)
-            abs_tol = abs_tol + 0.01
-
-        num_neighbors = 5
-        point_mean = []
-        for index in index_min:
-            neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
-            point_m = np.mean(smoothed_alpha[neighbor_indexes])
-            point_mean.append(point_m)
-        close_zero = point_mean.index(self.closest(point_mean,0))
-        ideal_indent = rows[index_min[close_zero]]
-
-        if self.show_plots:
-            plt.figure(figsize=(10, 6))
-            plt.plot(rows,alpha_indent)
-#            plt.plot(rows, smoothed_alpha_indent)
-            plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
-            plt.xlabel("Sum width indent")
-            plt.ylabel("$d\\alpha$/d(indent)")
-            plt.legend(
-                ["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)])
-            plt.title(f"Sum width convergence with optimal indent: " + str(ideal_indent))
         return ideal_indent
 
     def remove_outliers_IQR(self, x, data, blocks, num_neighbors):
