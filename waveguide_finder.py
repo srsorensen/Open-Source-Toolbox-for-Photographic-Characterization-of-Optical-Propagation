@@ -151,7 +151,7 @@ def EMA(data, smoothing=0.01):
         i += 1
     return ma
 
-path = "C:/Users/au617007/PycharmProjects/SPA2/2023-09-07_16_10_03_312_chip12_waveguide2.png"
+path = "C:/Users/simon/PycharmProjects/SPA/Data/2023-09-07_16_10_03_312_chip13_waveguide3.png"
 # path2 = "C:/Users/frede/OneDrive/Skrivebord/Civil/Speciale/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
 # path3 = "C:/Users/frede/OneDrive/Skrivebord/Civil/Speciale/W31 1.4 air measurements/08-08-23/2023-09-07_16_10_03_312_chip14_waveguide4.png"
 
@@ -177,9 +177,9 @@ indent_list = [0, 0.05, 0.9, 1]
 in_point, out_point = find_input_and_output(indent_list, grey_image)
 
 in_point, out_point
-
-out_point = (out_point[0], out_point[1] + 1)  # +430
-in_point = (in_point[0], in_point[1] - 5)  # -80
+#1886,1208
+out_point = (1886,1208)#(out_point[0], out_point[1] + 210)
+in_point = (in_point[0], in_point[1] - 15)  # -80
 
 plt.figure(figsize=(10, 6))
 plt.title("Grayscale Image with input and output and max pixel values removed")
@@ -187,12 +187,12 @@ plt.plot(*in_point, "ro")
 plt.plot(*out_point, "ro")
 
 point1 = np.array((in_point[0], in_point[1]))
-point2 = np.array((in_point[0], out_point[1]))
+point2 = np.array((in_point[0], 1985))#out_point[1]
 
 plt.plot(*point1, "bo")
 plt.plot(*point2, "bo")
 
-distance_um = 1102  # Measured in klayout
+distance_um = 1399#1102  # Measured in klayout
 mum_per_pixel = um_per_pixel(point1, point2, distance_um)
 
 # peaks = grey_image != 1
@@ -242,23 +242,37 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
 
 font_size = 13
+path_length = []
+threshold = np.round(np.linspace(0.01,0.1,10),2)
+j = 0
+for i in threshold:
+    bw_waveguide = grey_image > i
+    #plt.figure(figsize=(10, 6))
+    #imshow(bw_waveguide)
+    #plt.axis('off')
+    start = (in_point[1], in_point[0])
+    end = (out_point[1], out_point[0])
+    path, costs = find_path(bw_waveguide, start, end)
+    path_length.append(path)
 
-bw_waveguide = grey_image > 0.01
-plt.figure(figsize=(10, 6))
-imshow(bw_waveguide)
-plt.axis('off')
+diff_paths = []
+path_length_mum = []
+for element in path_length:
+    sub_length = len(element)
+    length_mum = sub_length*mum_per_pixel
+    diff_paths.append(sub_length)
+    path_length_mum.append(length_mum)
 
-start = (in_point[1], in_point[0])
-end = (out_point[1], out_point[0])
-path, costs = find_path(bw_waveguide, start, end)
+max_element = max(path_length_mum)
+max_index = path_length_mum.index(max_element)
 
 x_path = []
 y_path = []
-for i in range(len(path)):
+for i in range(len(path_length[max_index])):
     # if i % 10 == 0:
-    x_path.append(path[i][1])
-    y_path.append(path[i][0])
-
+    x_path.append(path_length[max_index][i][1])
+    y_path.append(path_length[max_index][i][0])
+#print(len(path)*mum_per_pixel)
 # x_path = x_path[1050:-1200]
 # y_path = y_path[1050:-1200]
 
@@ -331,25 +345,19 @@ plt.show()
 
 # point1 = np.array((0,0))
 # point2 = np.array((0,grey_image.shape[1]))
-
+x_iqr = x_iqr[2150:5750]
+y_iqr = y_iqr[2150:5750]
+y_savgol = y_savgol[2150:5750]
 
 fit_x = x_iqr
 intensity_values = y_savgol
 
 # fit_x = np.array([x*mum_per_pixel for x in fit_x])
 
-
-
-fit_x = fit_x[:4200]
-intensity_values = intensity_values[:4200]
-y_iqr = y_iqr[:4200]
-y_savgol = y_savgol[:4200]
-
-
 initial_guess = [25, 0.0006, np.min(intensity_values)]
 fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, fit_x,
                                                                                 intensity_values, p0=initial_guess,
-                                                                                full_output=True)  # sigma=weights, absolute_sigma=True
+                                                                                full_output=True,maxfev=5000)  # sigma=weights, absolute_sigma=True
 fit = exponential_function_offset(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 fit_guess = exponential_function_offset(fit_x, *initial_guess)
 residuals = fit - intensity_values
@@ -372,8 +380,9 @@ alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1
 # prediction_bounds_sigma_f = exponential_function_prediction_bounds_sigma(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters_cov_var_matrix, mean_squared_error)
 
 plt.figure(figsize=(10, 6))
+plt.yscale('log')
 plt.plot(fit_x, intensity_values, 'b-', label="Smoothed data")
-plt.plot(fit_x, fit, 'r-', label=f"Fit to smoothed data: {alpha_dB:.1f}$\pm${alpha_dB_variance:.1f} dB/cm")  # ,
+plt.plot(fit_x, fit, 'r-', label=f"Fit to smoothed data: {alpha_dB:.1f}$\pm${alpha_dB_variance:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
 plt.scatter(fit_x, y_iqr, alpha=0.1, label="Raw data", s=2, color="k")
 
 lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
@@ -387,7 +396,7 @@ plt.show()
 initial_guess = [25, 0.0006, np.min(y_iqr)]
 fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
                                                                                 y_iqr, p0=initial_guess,
-                                                                                full_output=True)  # sigma=weights, absolute_sigma=True
+                                                                                full_output=True,maxfev=5000)  # sigma=weights, absolute_sigma=True
 fit_raw = exponential_function_offset(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 fit_guess = exponential_function_offset(fit_x, *initial_guess)
 residuals = fit - intensity_values
@@ -404,6 +413,7 @@ alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matr
 plt.figure()
 
 # plt.plot(fit_x, fit, 'r-',linewidth=3, label=f"Fit to smoothed data: {alpha_dB:.1f}$\pm${alpha_dB_variance:.1f} dB/cm") #,
+plt.yscale('log')
 plt.plot(x_iqr, fit_raw, 'b-', linewidth=3,
          label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
 plt.plot(fit_x, intensity_values, 'r--', label="Smoothed data", linewidth=2)
@@ -415,8 +425,8 @@ lgnd.legendHandles[2].set_alpha(1)
 plt.xlabel('x Length [um]', fontsize=font_size)
 
 plt.ylabel('Mean pixel intensity [a.u.]', fontsize=font_size)
-plt.xlim([0, 8000])
-plt.ylim([0, 70])
+#plt.xlim([0, 8000])
+#plt.ylim([0, 70])
 plt.show()
 print("Fit Parameters:", fit_parameters)
 print("Variance-Covariance Matrix Fit Parameters:", fit_parameters_cov_var_matrix)
