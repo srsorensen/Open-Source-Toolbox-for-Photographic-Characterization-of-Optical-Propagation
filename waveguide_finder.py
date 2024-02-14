@@ -4,6 +4,7 @@ Created on Tue Sep 12 11:35:46 2023
 
 @author: frede
 """
+#Click and find input/output on picture.
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -99,7 +100,22 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
-path = "C:/Users/simon/PycharmProjects/SPA/Data/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
+#    def input_detection(grey_image):
+#    sobel_h = ndi.sobel(grey_image, 0)  # horizontal gradient
+#    sobel_v = ndi.sobel(grey_image, 1)  # vertical gradient
+#    magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
+#    magnitude_norm = magnitude / np.max(magnitude)
+#    indices_over_099 = np.argwhere(magnitude_norm > 0.04)
+#    x_coords = [coord[0] for coord in indices_over_099]
+#    y_coords = [coord[1] for coord in indices_over_099]
+#    plt.scatter(y_coords,x_coords)
+#    plt.xlabel('X-axis')
+#    plt.ylabel('Y-axis')
+#    plt.title('Plot of Coordinates')
+#    plt.show()
+#   return 1
+
+path = "C:/Users/au617007/PycharmProjects/SPA2/2023-09-07_16_10_03_312_chip12_waveguide2.png"
 
 image = util.img_as_float(imread(path))
 # image = (rotate(image,180,resize=True))
@@ -139,34 +155,22 @@ plt.plot(*point2, "bo")
 distance_um = 1399#1102  # Measured in klayout
 mum_per_pixel = um_per_pixel(point1, point2, distance_um)
 
-
-sobel_h = ndi.sobel(grey_image, 0)  # horizontal gradient
-sobel_v = ndi.sobel(grey_image, 1)  # vertical gradient
+sobel_h = ndi.sobel(grey_image, 0)
+sobel_v = ndi.sobel(grey_image, 1)
 magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
-magnitude *= 255.0 / np.max(magnitude)  # normalization
-sobel_h *= 255 / np.max(sobel_h)
-sobel_v *= 255 / np.max(sobel_v)
-fig, axs = plt.subplots(2, 2, figsize=(8, 8))
-plt.gray()  # show the filtered result in grayscale
-axs[0, 0].imshow(grey_image)
-axs[0, 1].imshow(sobel_h)
-axs[1, 0].imshow(sobel_v)
-axs[1, 1].imshow(magnitude)
-titles = ["original", "horizontal", "vertical", "magnitude"]
-for i, ax in enumerate(axs.ravel()):
-    ax.set_title(titles[i])
-    ax.axis("off")
-plt.show()
+#magnitude_norm = magnitude / np.max(magnitude)
+#indices_over_099 = np.argwhere(magnitude_norm > 0.04)
+#x_coords = [coord[0] for coord in indices_over_099]
+#y_coords = [coord[1] for coord in indices_over_099]
 
-indices_over_099 = np.argwhere(sobel_h > 0.99)
-
-rows_over_099 = {}
-for index in indices_over_099:
-    if index[0] not in rows_over_099:
-        rows_over_099[index[0]] = []
-    rows_over_099[index[0]].append(index[1])
-
-for row, columns in rows_over_099.items():
+#plt.figure(figsize=(10,6))
+#plt.scatter(y_coords,x_coords)
+#plt.scatter(y_coords[0],x_coords[0])
+#plt.ylim(2000,0)
+#plt.xlabel('X-axis')
+#plt.ylabel('Y-axis')
+#plt.title('Plot of Coordinates')
+#plt.show()
 
 
 path_length = []
