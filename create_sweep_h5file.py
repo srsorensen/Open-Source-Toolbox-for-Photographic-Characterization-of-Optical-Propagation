@@ -18,9 +18,9 @@ def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
 
-path = 'D:/Top_Down_Method/direc/Converge/'
+path = ('F:/GaAs/')
 f_ending = '.bmp'
-contains = 'ST3'
+contains = '2023-11-17_wavelength_sweep_IRFilter_GST3_Width_1525nm_TE_2'
 
 
 
@@ -83,12 +83,9 @@ else:
                 continue
 
             try:
-                left_indent_opt = spa.find_optimal_left_indent(image, right_indent, waveguide_sum_width,
-                                                               IQR_neighbor_removal)
-                right_indent_opt = spa.find_optimal_right_indent(image, left_indent_opt, waveguide_sum_width,
-                                                                 IQR_neighbor_removal)
-                sum_width_opt = spa.find_optimal_waveguide_sum_width(image, left_indent_opt, right_indent_opt,
-                                                                     IQR_neighbor_removal)
+                left_indent_opt = spa.optimize_parameter("left indent",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
+                right_indent_opt = spa.optimize_parameter("right indent",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
+                sum_width_opt = spa.optimize_parameter("sum width",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
                 alpha, rsquared, x, y, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt, sum_width_opt,
                                                           IQR_neighbor_removal)
                 print(str(counter)+ ",  Indent: "+ str(left_indent_opt) + ",  Alpha: " +str(np.round(alpha,1)) + ' dB/cm')
@@ -110,7 +107,7 @@ else:
                 wavelengths.append(wavelength)
                 r_squared_values.append(rsquared)
                 left_indent_sweep.append(left_indent_opt)
-                right_indent_sweep.append(right_indent_opt)
+                #right_indent_sweep.append(right_indent_opt)
                 sum_width_sweep.append(sum_width_opt)
 
 
