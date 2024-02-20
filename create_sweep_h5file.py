@@ -18,9 +18,9 @@ def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
 
-path = ('F:/GaAs/')
+path = 'F:/Coupling/'
 f_ending = '.bmp'
-contains = '2023-11-17_wavelength_sweep_IRFilter_GST3_Width_1525nm_TE_2'
+contains = 'ST3'
 
 
 
