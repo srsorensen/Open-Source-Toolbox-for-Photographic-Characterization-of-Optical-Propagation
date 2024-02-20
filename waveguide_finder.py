@@ -4,6 +4,7 @@ Created on Tue Sep 12 11:35:46 2023
 
 @author: frede
 """
+#Click and find input/output on picture.
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -99,7 +100,22 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
-path = "C:/Users/simon/PycharmProjects/SPA/Data/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
+#    def input_detection(grey_image):
+#    sobel_h = ndi.sobel(grey_image, 0)  # horizontal gradient
+#    sobel_v = ndi.sobel(grey_image, 1)  # vertical gradient
+#    magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
+#    magnitude_norm = magnitude / np.max(magnitude)
+#    indices_over_099 = np.argwhere(magnitude_norm > 0.04)
+#    x_coords = [coord[0] for coord in indices_over_099]
+#    y_coords = [coord[1] for coord in indices_over_099]
+#    plt.scatter(y_coords,x_coords)
+#    plt.xlabel('X-axis')
+#    plt.ylabel('Y-axis')
+#    plt.title('Plot of Coordinates')
+#    plt.show()
+#   return 1
+
+path = "C:/Users/Simon/PycharmProjects/PICLAB/Projects/Scattering Photo Analysis/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
 
 image = util.img_as_float(imread(path))
 # image = (rotate(image,180,resize=True))
@@ -136,37 +152,25 @@ point2 = np.array((in_point[0], out_point[1]))#1985
 plt.plot(*point1, "bo")
 plt.plot(*point2, "bo")
 
-distance_um = 1399#1102  # Measured in klayout
+distance_um = 1.399#1102  # Measured in klayout
 mum_per_pixel = um_per_pixel(point1, point2, distance_um)
 
-
-sobel_h = ndi.sobel(grey_image, 0)  # horizontal gradient
-sobel_v = ndi.sobel(grey_image, 1)  # vertical gradient
+sobel_h = ndi.sobel(grey_image, 0)
+sobel_v = ndi.sobel(grey_image, 1)
 magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
-magnitude *= 255.0 / np.max(magnitude)  # normalization
-sobel_h *= 255 / np.max(sobel_h)
-sobel_v *= 255 / np.max(sobel_v)
-fig, axs = plt.subplots(2, 2, figsize=(8, 8))
-plt.gray()  # show the filtered result in grayscale
-axs[0, 0].imshow(grey_image)
-axs[0, 1].imshow(sobel_h)
-axs[1, 0].imshow(sobel_v)
-axs[1, 1].imshow(magnitude)
-titles = ["original", "horizontal", "vertical", "magnitude"]
-for i, ax in enumerate(axs.ravel()):
-    ax.set_title(titles[i])
-    ax.axis("off")
-plt.show()
+#magnitude_norm = magnitude / np.max(magnitude)
+#indices_over_099 = np.argwhere(magnitude_norm > 0.04)
+#x_coords = [coord[0] for coord in indices_over_099]
+#y_coords = [coord[1] for coord in indices_over_099]
 
-indices_over_099 = np.argwhere(sobel_h > 0.99)
-
-rows_over_099 = {}
-for index in indices_over_099:
-    if index[0] not in rows_over_099:
-        rows_over_099[index[0]] = []
-    rows_over_099[index[0]].append(index[1])
-
-for row, columns in rows_over_099.items():
+#plt.figure(figsize=(10,6))
+#plt.scatter(y_coords,x_coords)
+#plt.scatter(y_coords[0],x_coords[0])
+#plt.ylim(2000,0)
+#plt.xlabel('X-axis')
+#plt.ylabel('Y-axis')
+#plt.title('Plot of Coordinates')
+#plt.show()
 
 
 path_length = []
@@ -196,7 +200,7 @@ for i in range(len(path_length[max_index])):
     x_path.append(path_length[max_index][i][1])
     y_path.append(path_length[max_index][i][0])
 
-font_size = 13
+font_size = 15
 
 plt.figure()
 # plt.title("Image with path")
@@ -236,9 +240,7 @@ intensity_values = mean_image[y_path, x_path]
 plt.figure()
 # plt.title("Mean of intensity values as a function of distance, with background")
 plt.scatter(x, y_raw, color="k", s=1, alpha=0.4)
-
-plt.scatter(x_iqr, y_iqr, s=1, color="b", alpha=0.7)
-# plt.plot(x_exp,y_exp,"g-")
+plt.scatter(x_iqr, y_iqr, s=2, color="b", alpha=0.7)
 plt.plot(x_iqr, y_savgol, "r-", linewidth=3)
 # plt.plot(background_intensity)
 plt.xlabel('x Length [um]', fontsize=font_size)
@@ -253,9 +255,10 @@ plt.xlim([0, 8000])
 plt.ylim([0, 110])
 plt.show()
 
-x_iqr = x_iqr[2150:5750]
-y_iqr = y_iqr[2150:5750]
-y_savgol = y_savgol[2150:5750]
+x_iqr = x_iqr[525:]
+y_iqr = y_iqr[525:]
+y_savgol = y_savgol[525:]
+
 
 fit_x = x_iqr
 intensity_values = y_savgol
@@ -277,20 +280,6 @@ r_squared = 1 - (ss_res / ss_tot)
 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
 alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
-plt.figure(figsize=(10, 6))
-plt.yscale('log')
-plt.plot(fit_x, intensity_values, 'b-', label="Smoothed data")
-plt.plot(fit_x, fit, 'r-', label=f"Fit to smoothed data: {alpha_dB:.1f}$\pm${alpha_dB_variance:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
-plt.scatter(fit_x, y_iqr, alpha=0.1, label="Raw data", s=2, color="k")
-
-lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
-lgnd.legendHandles[2]._sizes = [30]
-lgnd.legendHandles[2].set_alpha(1)
-plt.xlabel('x Length [um]', fontsize=font_size)
-
-plt.ylabel('Mean of blue intensity', fontsize=font_size)
-plt.show()
-
 initial_guess = [25, 0.0006, np.min(y_iqr)]
 fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
                                                                                 y_iqr, p0=initial_guess,
@@ -305,26 +294,25 @@ ss_res = np.sum(residuals ** 2)
 ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
 r_squared_raw = 1 - (ss_res / ss_tot)
 
-alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
-alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
+alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 plt.figure()
-
-# plt.plot(fit_x, fit, 'r-',linewidth=3, label=f"Fit to smoothed data: {alpha_dB:.1f}$\pm${alpha_dB_variance:.1f} dB/cm") #,
-plt.yscale('log')
-plt.plot(x_iqr, fit_raw, 'b-', linewidth=3,
-         label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-plt.plot(fit_x, intensity_values, 'r--', label="Smoothed data", linewidth=2)
-plt.scatter(fit_x, y_iqr, alpha=0.1, label="Raw data", s=2.5, color="k")
-
+x = x[525:]
+y_raw = y_raw[525:]
+#plt.plot(fit_x, intensity_values, color='#59e659',linestyle="--", label="Smoothed data", linewidth=2)
+plt.plot(x_iqr, fit_raw, 'r',linestyle="-", linewidth=3,label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+plt.scatter(x, y_raw, color="#43a2ca", s=1.5, label="Raw data")
+plt.scatter(x_iqr, y_iqr, color="k", s=1.5,label="Outlier corrected data")
 lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
 lgnd.legendHandles[2]._sizes = [30]
 lgnd.legendHandles[2].set_alpha(1)
-plt.xlabel('x Length [um]', fontsize=font_size)
-
+#lgnd.legendHandles[3]._sizes = [30]
+#lgnd.legendHandles[3].set_alpha(1)
+plt.xlabel('x Length [mm]', fontsize=font_size)
 plt.ylabel('Mean pixel intensity [a.u.]', fontsize=font_size)
-#plt.xlim([0, 8000])
-#plt.ylim([0, 70])
+plt.xlim([min(x), max(x)])
+plt.ylim([min(y_raw), max(y_raw)+5])
 plt.show()
 print("Fit Parameters:", fit_parameters)
 print("Variance-Covariance Matrix Fit Parameters:", fit_parameters_cov_var_matrix)
