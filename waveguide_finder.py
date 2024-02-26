@@ -15,9 +15,7 @@ from skimage.color import rgb2gray
 from skimage.transform import rotate
 from skimage.filters import rank, gaussian
 from skimage import util
-
 from functions import *
-
 import scipy.ndimage as ndi
 from scipy.fft import ifft2, fftshift, fft2, ifftshift
 from scipy.signal import savgol_filter
@@ -115,7 +113,7 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 #    plt.show()
 #   return 1
 
-path = "C:/Users/Simon/PycharmProjects/PICLAB/Projects/Scattering Photo Analysis/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
+path = "C:/Users/simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
 
 image = util.img_as_float(imread(path))
 # image = (rotate(image,180,resize=True))
@@ -200,15 +198,17 @@ for i in range(len(path_length[max_index])):
     x_path.append(path_length[max_index][i][1])
     y_path.append(path_length[max_index][i][0])
 
-font_size = 15
+font_size = 16
 
 plt.figure()
 # plt.title("Image with path")
 plt.plot(*in_point, "ro")
 plt.plot(*out_point, "ro")
 plt.scatter(x_path[::100], y_path[::100], s=16, alpha=1, color="red")
-plt.xlabel("Width in pixels", fontsize=font_size)
-plt.ylabel("Height in pixels", fontsize=font_size)
+plt.xlabel("Width [a.u.]", fontsize=font_size)
+plt.ylabel("Height [a.u.]", fontsize=font_size)
+plt.xticks(fontsize=font_size)
+plt.yticks(fontsize=font_size)
 # plt.axis('off')
 plt.imshow(magnitude, cmap="turbo")
 
@@ -277,8 +277,8 @@ ss_res = np.sum(residuals ** 2)
 ss_tot = np.sum((intensity_values - np.mean(intensity_values)) ** 2)
 r_squared = 1 - (ss_res / ss_tot)
 
-alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
-alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
+alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 
 initial_guess = [25, 0.0006, np.min(y_iqr)]
 fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
@@ -294,25 +294,25 @@ ss_res = np.sum(residuals ** 2)
 ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
 r_squared_raw = 1 - (ss_res / ss_tot)
 
-
 alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
 alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 plt.figure()
 x = x[525:]
 y_raw = y_raw[525:]
-#plt.plot(fit_x, intensity_values, color='#59e659',linestyle="--", label="Smoothed data", linewidth=2)
-plt.plot(x_iqr, fit_raw, 'r',linestyle="-", linewidth=3,label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-plt.scatter(x, y_raw, color="#43a2ca", s=1.5, label="Raw data")
-plt.scatter(x_iqr, y_iqr, color="k", s=1.5,label="Outlier corrected data")
+plt.plot(x_iqr, fit_raw, color="#E69F00",linestyle="-", linewidth=3,label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
+plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5,label="Outlier corrected data")
 lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
+lgnd.legendHandles[1]._sizes = [30]
+lgnd.legendHandles[1].set_alpha(1)
 lgnd.legendHandles[2]._sizes = [30]
 lgnd.legendHandles[2].set_alpha(1)
-#lgnd.legendHandles[3]._sizes = [30]
-#lgnd.legendHandles[3].set_alpha(1)
-plt.xlabel('x Length [mm]', fontsize=font_size)
-plt.ylabel('Mean pixel intensity [a.u.]', fontsize=font_size)
+plt.xlabel('Propagation length [mm]', fontsize=font_size)
+plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
 plt.xlim([min(x), max(x)])
 plt.ylim([min(y_raw), max(y_raw)+5])
+plt.xticks(fontsize=font_size)
+plt.yticks(fontsize=font_size)
 plt.show()
 print("Fit Parameters:", fit_parameters)
 print("Variance-Covariance Matrix Fit Parameters:", fit_parameters_cov_var_matrix)
