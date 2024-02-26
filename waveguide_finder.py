@@ -258,7 +258,8 @@ plt.show()
 x_iqr = x_iqr[525:]
 y_iqr = y_iqr[525:]
 y_savgol = y_savgol[525:]
-
+x = x[525:]
+y_raw = y_raw[525:]
 
 fit_x = x_iqr
 intensity_values = y_savgol
@@ -296,17 +297,35 @@ r_squared_raw = 1 - (ss_res / ss_tot)
 
 alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
 alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+
+initial_guess = [25, 0.0006, np.min(y_raw)]
+fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x,
+                                                                                y_raw, p0=initial_guess,
+                                                                                full_output=True,maxfev=5000)  # sigma=weights, absolute_sigma=True
+fit_r = exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+fit_guess = exponential_function_offset(x, *initial_guess)
+residuals = fit_r - y_raw
+mean_squared_error = np.mean(residuals ** 2)
+
+residuals = y_raw - exponential_function_offset(x, *fit_parameters)
+ss_res = np.sum(residuals ** 2)
+ss_tot = np.sum((y_raw - np.mean(y_raw)) ** 2)
+r_squared_r = 1 - (ss_res / ss_tot)
+
+alpha_dB_r = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+alpha_dB_r_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+
 plt.figure()
-x = x[525:]
-y_raw = y_raw[525:]
+
 plt.plot(x_iqr, fit_raw, color="#E69F00",linestyle="-", linewidth=3,label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+plt.plot(x, fit_r, color="g",linestyle="-", linewidth=3,label=f"Fit to raw data\n {alpha_dB_r:.1f}$\pm${alpha_dB_r_variance:.1f} dB/cm, R\u00b2: {r_squared_r:.2f}")  # ,
 plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
 plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5,label="Outlier corrected data")
 lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
-lgnd.legendHandles[1]._sizes = [30]
-lgnd.legendHandles[1].set_alpha(1)
 lgnd.legendHandles[2]._sizes = [30]
 lgnd.legendHandles[2].set_alpha(1)
+lgnd.legendHandles[3]._sizes = [30]
+lgnd.legendHandles[3].set_alpha(1)
 plt.xlabel('Propagation length [mm]', fontsize=font_size)
 plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
 plt.xlim([min(x), max(x)])
