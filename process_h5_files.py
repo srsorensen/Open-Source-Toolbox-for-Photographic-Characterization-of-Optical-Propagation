@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from itertools import zip_longest
 import pandas as pd
+import klepto as klepto
 
 
 def get_polarization_name(filename):
@@ -77,8 +78,8 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 
-directory = "F:/GaAs/"
-contains = "GST3"
+directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
+contains = "910nm_optimized_ST3_width_1600nm_TM"
 f_ending = ".h5"
 
 polarization_plot_dict = {"TM": "b-", "TE": "r-"}
@@ -121,7 +122,93 @@ for file in os.listdir(directory):
             TM_wav.append(([float(x.decode()) for x in wav_nm]))
         hf.close()
 
+directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
+contains = "945nm_optimized_ST3_width_1600nm_TM"
+f_ending = ".h5"
 
+polarization_plot_dict = {"TM": "b-", "TE": "r-"}
+
+TE_data1 = []
+TM_data1 = []
+
+TE_weights1 = []
+TM_weights1 = []
+
+TE_wav1 = []
+TM_wav1 = []
+
+TE_dict1 = {}
+TM_dict1 = {}
+
+for file in os.listdir(directory):
+    if contains.lower() in file.lower() and f_ending.lower() in file.lower():
+        #print(file)
+        hf = h5py.File(directory + file, 'r')
+        wav_nm1 = np.array(hf.get('wavelength'))
+        weights1 = np.array(hf.get('alpha_variance'))
+        left_indent1 = np.array(hf.get('left_indent'))
+        sum_width1 = np.array(hf.get('sum_width'))
+        r_squared1 = np.array(hf.get('r_squared'))
+
+        # print(weights)
+        #print(wav_nm)
+        alphas1 = np.array(hf.get('alpha'))
+
+        y_savgol1 = savgol_filter(alphas1.tolist(), 501, 1, mode="nearest")
+        # polarization = get_polarization_name(file)
+        if "TE" in file:
+            TE_data1.append(list(y_savgol1))
+            TE_weights1.append(weights1)
+            TE_wav1.append(([float(x.decode()) for x in wav_nm1]))
+        else:
+            TM_data1.append(list(y_savgol1))
+            TM_weights1.append(weights1)
+            TM_wav1.append(([float(x.decode()) for x in wav_nm1]))
+        hf.close()
+
+directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
+contains = "980nm_optimized_ST3_width_1600nm_TM"
+f_ending = ".h5"
+
+polarization_plot_dict = {"TM": "b-", "TE": "r-"}
+
+TE_data2 = []
+TM_data2 = []
+
+TE_weights2 = []
+TM_weights2 = []
+
+TE_wav2 = []
+TM_wav2 = []
+
+TE_dict2 = {}
+TM_dict2 = {}
+
+for file in os.listdir(directory):
+    if contains.lower() in file.lower() and f_ending.lower() in file.lower():
+        #print(file)
+        hf = h5py.File(directory + file, 'r')
+        wav_nm2 = np.array(hf.get('wavelength'))
+        weights2 = np.array(hf.get('alpha_variance'))
+        left_indent2 = np.array(hf.get('left_indent'))
+        sum_width2 = np.array(hf.get('sum_width'))
+        r_squared2 = np.array(hf.get('r_squared'))
+
+        # print(weights)
+        #print(wav_nm)
+        alphas2 = np.array(hf.get('alpha'))
+
+        y_savgol2 = savgol_filter(alphas2.tolist(), 501, 1, mode="nearest")
+        # polarization = get_polarization_name(file)
+        if "TE" in file:
+            TE_data2.append(list(y_savgol2))
+            TE_weights2.append(weights2)
+            TE_wav2.append(([float(x.decode()) for x in wav_nm2]))
+        else:
+            TM_data2.append(list(y_savgol2))
+            TM_weights2.append(weights2)
+            TM_wav2.append(([float(x.decode()) for x in wav_nm2]))
+        hf.close()
 
 plt.figure(figsize=(10, 6))
 
@@ -131,14 +218,15 @@ dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 # TM_data[2] = TM_data[2][:451]
 # TM_wav[2] = TM_wav[2][:451]
 
+
 # print([len(x) for x in TM_data20mW])
 plot_fontsize = 16
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_data, TE_wav, "TE", "b", [910, 980.1],TE_weights)
-#te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE","b",[910,980.1],TE_weights1)
-#te_dataframe2, te_mean2, te_std2 = plot_polarization_data(dataframe_wav,TE_data2,TE_wav2,"TE","b",[910,980.1],TE_weights2)
+te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE","b",[910,980.1],TE_weights1)
+te_dataframe2, te_mean2, te_std2 = plot_polarization_data(dataframe_wav,TE_data2,TE_wav2,"TE","b",[910,980.1],TE_weights2)
 tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_data, TM_wav, "TM", "r", [910, 980.1],TM_weights)
-#tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM","r",[910,980.1],TM_weights1)
-#tm_dataframe2, tm_mean2, tm_std2 = plot_polarization_data(dataframe_wav,TM_data2,TM_wav2,"TM","b",[910,980.1],TM_weights2)
+tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM","r",[910,980.1],TM_weights1)
+tm_dataframe2, tm_mean2, tm_std2 = plot_polarization_data(dataframe_wav,TM_data2,TM_wav2,"TM","b",[910,980.1],TM_weights2)
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
 plt.legend(by_label.values(), by_label.keys())
@@ -147,12 +235,17 @@ plt.figure(figsize=(10, 6))
 
 if not te_dataframe.empty:
     plt.plot(te_mean.index, te_mean,color="#E69F00")
-    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.3,color="#E69F00")
+    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2,color="#E69F00")
+    plt.plot(te_mean.index, te_mean + te_std,linestyle="-", color="#E69F00", alpha=0.3)
+    plt.plot(te_mean.index, te_mean - te_std,linestyle="-", color="#E69F00", alpha=0.3)
     plt.plot(te_mean1.index, te_mean1,color="#0072B2")
-    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.3,color="#0072B2")
+    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2,color="#0072B2")
+    plt.plot(te_mean1.index, te_mean1 - te_std1,linestyle="-", color="#0072B2", alpha=0.3)
+    plt.plot(te_mean1.index, te_mean1 + te_std1,linestyle="-", color="#0072B2", alpha=0.3)
     plt.plot(te_mean2.index, te_mean2,color="#000000")
-    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.3,color="#000000")
-    #plt.axvline(max(te_max), color='r', linestyle='--', label='Mean: ' + str(round(max(te_max), 1)) + 'nm')
+    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2,color="#000000")
+    plt.plot(te_mean2.index, te_mean2 - te_std2,linestyle="-",color="#000000",alpha=0.3)
+    plt.plot(te_mean2.index, te_mean2 + te_std2,linestyle="-", color="#000000", alpha=0.3)
     plt.xlabel("Wavelength (nm)",fontsize = plot_fontsize)
     plt.ylabel("Alpha (dB/cm)",fontsize = plot_fontsize)
 #    plt.legend(fontsize=plot_fontsize)
@@ -163,11 +256,17 @@ if not te_dataframe.empty:
 if not tm_dataframe.empty:
     plt.figure(figsize=(10, 6))
     plt.plot(tm_mean.index, tm_mean,color="#E69F00")
-    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.3,color="#E69F00")
+    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2,color="#E69F00")
+    plt.plot(tm_mean.index, tm_mean + tm_std, linestyle="-", color="#E69F00", alpha=0.2)
+    plt.plot(tm_mean.index, tm_mean - tm_std, linestyle="-", color="#E69F00", alpha=0.2)
     plt.plot(tm_mean1.index, tm_mean1,color="#0072B2")
-    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.3,color="#0072B2")
+    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2,color="#0072B2")
+    plt.plot(tm_mean1.index, tm_mean1 - tm_std1, linestyle="-", color="#0072B2", alpha=0.2)
+    plt.plot(tm_mean1.index, tm_mean1 + tm_std1, linestyle="-", color="#0072B2", alpha=0.2)
     plt.plot(tm_mean2.index, tm_mean2,color="#000000")
-    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.3,color="#000000")
+    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2,color="#000000")
+    plt.plot(tm_mean2.index, tm_mean2 - tm_std2, linestyle="-", color="#000000", alpha=0.2)
+    plt.plot(tm_mean2.index, tm_mean2 + tm_std2, linestyle="-", color="#000000", alpha=0.2)
     #plt.axvline(max(tm_max), color='r', linestyle='--', label='Mean: ' + str(round(max(tm_max), 1)) + 'nm')
     plt.xlabel("Wavelength (nm)",fontsize=plot_fontsize)
     plt.ylabel("Alpha (dB/cm)",fontsize=plot_fontsize)
@@ -175,21 +274,6 @@ if not tm_dataframe.empty:
     plt.xticks(fontsize=plot_fontsize)
     plt.yticks(fontsize=plot_fontsize)
     plt.xlim(910,980)
-
 # %%
-if not te_dataframe.empty:
-    hf = h5py.File(directory + contains + "_TE.h5", "w")
-    hf.create_dataset("wavelengths", data=te_mean.index)
-    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean.iloc[cut_index:])
-    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
-    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
-    hf.close()
-if not tm_dataframe.empty:
-    hf = h5py.File(directory + contains + "_TM.h5", "w")
-    hf.create_dataset("wavelengths", data=tm_mean.index)
-    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean.iloc[cut_index:])
-    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
-    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
-    hf.close()
 
 plt.show()
