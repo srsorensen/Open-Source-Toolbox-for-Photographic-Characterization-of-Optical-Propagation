@@ -275,5 +275,19 @@ if not tm_dataframe.empty:
     plt.yticks(fontsize=plot_fontsize)
     plt.xlim(910,980)
 # %%
+if not te_dataframe.empty:
+    hf = h5py.File(directory + contains + "_TE.h5", "w")
+    hf.create_dataset("wavelengths", data=te_mean.index)
+    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean.iloc[cut_index:])
+    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
+    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
+    hf.close()
+if not tm_dataframe.empty:
+    hf = h5py.File(directory + contains + "_TM.h5", "w")
+    hf.create_dataset("wavelengths", data=tm_mean.index)
+    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean.iloc[cut_index:])
+    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
+    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
+    hf.close()
 
 plt.show()
