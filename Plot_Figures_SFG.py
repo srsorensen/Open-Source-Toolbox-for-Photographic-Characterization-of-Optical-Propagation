@@ -273,9 +273,10 @@ remove_index_array = np.unique(remove_index_array.astype(int))
 
 fit_x = np.delete(x_length_crop_mu_array, np.flip(y > 20))[0:-100]
 fit_y = np.flip(np.delete((y - average_background_list), y > 20))[0:-100]
-#fit_x, fit_y, indexes = remove_outliers_IQR(fit_x, fit_y, 10, 5)
+x_iqr, y_iqr, indexes = remove_outliers_IQR(fit_x, fit_y, 10, 5)
 
 avg = moving_average_padding(fit_y, 200)
+avg_raw = moving_average_padding(y_iqr, 200)
 initial_guess = [ 4.22054755e-06, 6.70214111e-04, -1.25009852e+02]
 fit_rescaling = 1
 fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, fit_x/fit_rescaling, fit_y, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
@@ -286,14 +287,29 @@ residuals = fit - avg
 ss_res = np.sum(residuals ** 2)
 ss_tot = np.sum((fit_y - np.mean(fit_y)) ** 2)
 r_sq = 1 - (ss_res / ss_tot)
-
 mean_squared_error = np.mean(residuals**2)
+
+
+fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, x_iqr, y_iqr, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
+fit_raw = sfg_model_off_set(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+confidence_bounds_fit_raw = sfg_model_off_set_confidence_bound(x_iqr, fit_parameters, fit_parameters_cov_var_matrix)
+residuals_raw = fit_raw - avg
+ss_res = np.sum(residuals_raw ** 2)
+ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
+r_sq_raw = 1 - (ss_res / ss_tot)
+mean_squared_error_raw = np.mean(residuals_raw**2)
+
+
 plt.figure()
 plt.plot(fit_x, fit_y, 'b-', alpha=0.1)
-plt.plot(fit_x, avg , "b-")
+plt.plot(fit_x, avg, "b-")
+plt.plot(x_iqr,avg_raw,"g-")
 plt.plot(fit_x, fit, 'r-')
+plt.plot(x_iqr,fit_raw,"r-")
 plt.plot(fit_x, fit + 2*confidence_bounds_fit, 'r--')
 plt.plot(fit_x, fit - 2*confidence_bounds_fit, 'r--')
+plt.plot(x_iqr, fit_raw + 2*confidence_bounds_fit_raw, 'r--')
+plt.plot(fit_x, fit - 2*confidence_bounds_fit_raw, 'r--')
 
 plt.xlabel(r'$z$ length [$\mu m$]')
 plt.ylabel(r'Intensity')
@@ -320,7 +336,7 @@ fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(
 print("Fit Parameters", fit_parameters)
 fit = sfg_model_off_set(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 
-plt.figure()  
+plt.figure()
 plt.plot(fit_x, np.cumsum(fit_y))
 plt.plot(fit_x, fit)
 plt.show()
