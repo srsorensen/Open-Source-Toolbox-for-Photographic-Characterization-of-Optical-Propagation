@@ -1,13 +1,3 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-from scipy.optimize import curve_fit, least_squares
-from scipy.signal import find_peaks
-
-from functions import *
-import scipy.signal
-
-
 def remove_outliers_IQR(x, data, blocks, num_neighbors):
     # Removal of outliers using IQR. Change blocks -> Num_Subsets
     data_blocks = np.array_split(data, blocks)
@@ -39,6 +29,15 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from scipy.optimize import curve_fit, least_squares
+from scipy.signal import find_peaks
+
+from functions import *
+import scipy.signal
+
 fontsize = 10
 #plt.rcParams['text.usetex'] = True
 plt.rcParams['axes.labelsize'] = fontsize
@@ -46,6 +45,49 @@ plt.rcParams['legend.fontsize'] = fontsize
 plt.rcParams['legend.loc'] = 'upper left'
 plt.rcParams['xtick.labelsize'] = fontsize
 plt.rcParams['ytick.labelsize'] = fontsize
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.legend_handler
+
+
+#############################################################
+## Setup
+fontsize = 8
+#plt.rcParams['text.usetex'] = True
+plt.rcParams['axes.labelsize'] = fontsize
+plt.rcParams['legend.fontsize'] = fontsize
+plt.rcParams['legend.loc'] = 'upper left'
+plt.rcParams['xtick.labelsize'] = fontsize
+plt.rcParams['ytick.labelsize'] = fontsize
+
+LW, MS, MEW = 0.5, 2.5, 0.2
+XSMALL, SMALL_SIZE, MEDIUM_SIZE, BIGGER_SIZE = 12, 12, 20, 20
+FWIDTH = 2.2  # 2.2
+mpl.rcParams['lines.markersize'] = 15
+mpl.rcParams['lines.linewidth'] = 2
+mpl.rcParams['font.sans-serif'] = "Arial"
+mpl.rcParams['axes.linewidth'] = 1  # 1
+mpl.rcParams['xtick.direction'] = 'out'
+mpl.rcParams['ytick.direction'] = 'out'
+mpl.rc('xtick.minor', size=5, width=1.5)
+mpl.rc('ytick.minor', size=5, width=1.5)
+mpl.rc('xtick.major', size=5, width=1.5)
+mpl.rc('ytick.major', size=5, width=1.5)
+#mpl.rcParams['figure.figsize'] = [FWIDTH, FWIDTH / np.sqrt(2)]
+#mpl.rcParams['figure.dpi'] = 300
+mpl.rcParams['savefig.bbox'] = "tight"
+mpl.rcParams['savefig.pad_inches'] = 0.3 * SMALL_SIZE / 72
+plt.rc('font', size=MEDIUM_SIZE)
+plt.rc('axes', titlesize=MEDIUM_SIZE)
+plt.rc('axes', labelsize=MEDIUM_SIZE)
+plt.rc('xtick', labelsize=MEDIUM_SIZE)
+plt.rc('ytick', labelsize=MEDIUM_SIZE)
+plt.rc('legend', fontsize=MEDIUM_SIZE)
+plt.rc('figure', titlesize=BIGGER_SIZE)
+#############################################################
 
 
 path = 'Pictures/'
@@ -119,7 +161,7 @@ print("input_width_index: ", input_width_index, " input_height_index ", input_he
 
 
 # Change these to cut out the laser from the left and how far you want to go to the right
-left_indent = input_width_index + 0
+left_indent = input_width_index - 100
 right_indent = output_width_index
 top_indent = input_height_index - 100
 bottom_indent = input_height_index + 100
@@ -133,7 +175,7 @@ mum_pr_pixel = chip_length_mum / distance_input_output_pixel
 mum_pr_pixel = 0.4876681614349776
 print("mum pr pixel: ",mum_pr_pixel)
 # Find the waveguide
-left_index_guess = 300
+left_index_guess = 100
 separation = 100
 number_of_points = 10
 angle, angle_params, x_max_index_array, y_max_index_array = find_waveguide_angle(cropped_image_array[:, :, 2], left_index_guess, separation, number_of_points)
@@ -156,13 +198,16 @@ shape_cropped_array = np.shape(cropped_array)
 x_mu_array = np.arange(np.shape(rotated_image_array)[1]) * mum_pr_pixel
 y_mu_array = np.arange(np.shape(rotated_image_array)[0]) * mum_pr_pixel
 
-plt.figure()
-plt.imshow(np.flip(get_intensity_array(cropped_image_array.copy())), cmap="binary", vmin=0, vmax=10, interpolation='spline16', extent=[x_mu_array[0], x_mu_array[-1], y_mu_array[0], y_mu_array[-1]])
-plt.xlabel(r'$z$ length [$\mu m$]')
-plt.tick_params(left = False, labelleft = False)
 
+plt.figure(figsize=(10,6))
+plt.imshow(np.flip(get_intensity_array(cropped_image_array.copy())), cmap="turbo", vmin=1.5, vmax=np.max(get_intensity_array(cropped_image_array.copy())), interpolation='spline16', extent=[x_mu_array[0], x_mu_array[-1], y_mu_array[0], y_mu_array[-1]])
+plt.xlabel(r'Propagation length [mm]')
+plt.tick_params(left = False, labelleft = False)
+plt.tight_layout()
+#plt.savefig('Figures/binary_photo.png', transparent=True)
 plt.figure()
 plt.imshow(get_intensity_array(cropped_image_array.copy()), cmap="jet", vmin=0, vmax=10, interpolation='spline16', extent=[x_mu_array[0], x_mu_array[-1], y_mu_array[0], y_mu_array[-1]])
+
 plt.plot(x_mu_array[x_max_index_array], y_mu_array[y_max_index_array],'r.')
 plt.plot([x_mu_array[0], x_mu_array[-1]], [angle_params[1]*mum_pr_pixel, (angle_params[0]*len(x_mu_array) + angle_params[1])*mum_pr_pixel],'r-')
 #plt.plot(x_mu_array[right_max_width_index], y_mu_array[right_max_height_index], 'r.')
@@ -177,7 +222,7 @@ plt.imshow(get_intensity_array(rotated_image_array), cmap="jet", vmin=4, vmax=5,
 plt.title("Rotated Image")
 plt.xlabel('x [um]')
 plt.ylabel('y [um]')
-
+plt.show()
 upper_index_array = (np.ones(len(rotated_image_array[0, :, 2])) * upper).astype("int")
 lower_index_array = (np.ones(len(rotated_image_array[0, :, 2])) * lower).astype("int")
 
@@ -241,6 +286,10 @@ y = np.mean(rotated_image_array[cropped_image_height - upper: cropped_image_heig
 y_std = np.std(rotated_image_array[cropped_image_height - lower: cropped_image_height - upper, left_saturation_crop:right_saturation_crop, 2], axis=0)
 
 plt.figure()
+y_= np.sum(rotated_image_array[cropped_image_height - upper: cropped_image_height - lower, left_saturation_crop:right_saturation_crop, 2], axis=0)
+
+
+plt.figure()
 #plt.plot(x_length_crop_mu_array, np.max(rotated_image_array[lower:upper, :, 2], axis=0), 'k-', label="Max reading")
 
 plt.plot(x, y, 'b-', label="Raw data")
@@ -271,50 +320,64 @@ for peak_index in peaks_index_array:
 
 remove_index_array = np.unique(remove_index_array.astype(int))
 
-fit_x = np.delete(x_length_crop_mu_array, np.flip(y > 20))[0:-100]
-fit_y = np.flip(np.delete((y - average_background_list), y > 20))[0:-100]
-x_iqr, y_iqr, indexes = remove_outliers_IQR(fit_x, fit_y, 10, 5)
+fit_x = np.delete(x_length_crop_mu_array, np.flip(y > 20))[0:-300]
+fit_y = np.flip(np.delete((y - average_background_list), y > 20))[0:-300]
+x_iqr, y_iqr, indexes = remove_outliers_IQR(fit_x,fit_y,10,5)
 
-avg = moving_average_padding(fit_y, 200)
-avg_raw = moving_average_padding(y_iqr, 200)
 initial_guess = [ 4.22054755e-06, 6.70214111e-04, -1.25009852e+02]
 fit_rescaling = 1
 fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, fit_x/fit_rescaling, fit_y, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
 fit = sfg_model_off_set(fit_x/fit_rescaling, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 confidence_bounds_fit = sfg_model_off_set_confidence_bound(fit_x/fit_rescaling, fit_parameters, fit_parameters_cov_var_matrix)
-print("Fit Parameters", fit_parameters, "Covariance Matrix", fit_parameters_cov_var_matrix)
-residuals = fit - avg
+#print("Fit Parameters", fit_parameters, "Covariance Matrix", fit_parameters_cov_var_matrix)
+residuals_MSE = fit - fit_y
+mean_squared_error = np.mean(residuals_MSE**2)
+
+fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, x_iqr/fit_rescaling, y_iqr, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
+fit_iqr = sfg_model_off_set(x_iqr/fit_rescaling, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+confidence_bounds_fit_iqr = sfg_model_off_set_confidence_bound(x_iqr/fit_rescaling, fit_parameters, fit_parameters_cov_var_matrix)
+#print("Fit Parameters", fit_parameters, "Covariance Matrix", fit_parameters_cov_var_matrix)
+residuals_MSE_iqr = fit_iqr - y_iqr
+mean_squared_error_iqr = np.mean(residuals_MSE_iqr**2)
+
+
+
+avg = moving_average_padding(fit_y, 200)
+avg_iqr = moving_average_padding(y_iqr, 200)
+
+
+residuals = avg - fit
 ss_res = np.sum(residuals ** 2)
-ss_tot = np.sum((fit_y - np.mean(fit_y)) ** 2)
-r_sq = 1 - (ss_res / ss_tot)
-mean_squared_error = np.mean(residuals**2)
+
+ss_tot = np.sum((avg - np.mean(avg)) ** 2)
+r_squared = 1 - (ss_res / ss_tot)
+print('R^2 = ', r_squared)
+
+residuals_iqr = avg_iqr - fit_iqr
+ss_res_iqr = np.sum(residuals_iqr ** 2)
+
+ss_tot_iqr = np.sum((avg_iqr - np.mean(avg_iqr)) ** 2)
+r_squared_iqr = 1 - (ss_res_iqr / ss_tot_iqr)
+
+plt.figure(figsize=(10,6))
+plt.plot(fit_x*1e-3, fit_y, color='k',linestyle='-', alpha=0.2)
+plt.plot(fit_x*1e-3, avg, color='r',linestyle='-',alpha=0.6)
+plt.plot(fit_x*1e-3, fit, linestyle="--",color="r",label=f"Fit to raw data: R\u00b2 {r_squared:.2f}")
+plt.plot(x_iqr*1e-3, avg_iqr, color='b',linestyle='-',alpha=0.6)
+plt.plot(x_iqr*1e-3, fit_iqr, linestyle="--",color="b",label=f"Fit to outlier corrected data: R\u00b2 {r_squared_iqr:.2f}")
+#plt.plot(fit_x*1e-3, fit + 2*confidence_bounds_fit, color='k',linestyle='--')
+#plt.plot(fit_x*1e-3, fit - 2*confidence_bounds_fit, color='k',linestyle='--')
+plt.xlabel(r'Propagation length [mm]',fontsize=24)
+plt.ylabel(r'Intensity [a.u.]',fontsize=24)
+plt.xticks(fontsize=24)
+plt.yticks(fontsize=24)
+plt.xlim([0, 1200*1e-3])
+plt.ylim([0, 20])
+plt.tight_layout()
+plt.legend()
+plt.show()
 
 
-fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, x_iqr, y_iqr, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
-fit_raw = sfg_model_off_set(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
-confidence_bounds_fit_raw = sfg_model_off_set_confidence_bound(x_iqr, fit_parameters, fit_parameters_cov_var_matrix)
-residuals_raw = fit_raw - avg
-ss_res = np.sum(residuals_raw ** 2)
-ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
-r_sq_raw = 1 - (ss_res / ss_tot)
-mean_squared_error_raw = np.mean(residuals_raw**2)
-
-
-plt.figure()
-plt.plot(fit_x, fit_y, 'b-', alpha=0.1)
-plt.plot(fit_x, avg, "b-")
-plt.plot(x_iqr,avg_raw,"g-")
-plt.plot(fit_x, fit, 'r-')
-plt.plot(x_iqr,fit_raw,"r-")
-plt.plot(fit_x, fit + 2*confidence_bounds_fit, 'r--')
-plt.plot(fit_x, fit - 2*confidence_bounds_fit, 'r--')
-plt.plot(x_iqr, fit_raw + 2*confidence_bounds_fit_raw, 'r--')
-plt.plot(fit_x, fit - 2*confidence_bounds_fit_raw, 'r--')
-
-plt.xlabel(r'$z$ length [$\mu m$]')
-plt.ylabel(r'Intensity')
-plt.xlim([0, 1134])
-plt.ylim([0, 6])
 print(x_length_crop_mu_array)
 print("Picture", pictures[picture_index])
 print("Fit Parameters:", fit_parameters)
@@ -328,15 +391,55 @@ print(
 print(f'z_offset = {fit_parameters[2]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum' )
 print(f'interaction length = {1134-fit_parameters[2]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum')
 print(f'a = {fit_parameters[0]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum')
-print("Mean square error: ", mean_squared_error)
+print('Mean square error:', mean_squared_error)
 print(confidence_bounds_fit)
-print("R squared: ", r_sq)
-fit_y_cumsum = np.cumsum(fit_y)
-fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, fit_x, fit_y_cumsum, p0=[0,0,0], full_output=True)
-print("Fit Parameters", fit_parameters)
-fit = sfg_model_off_set(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 
-plt.figure()
-plt.plot(fit_x, np.cumsum(fit_y))
-plt.plot(fit_x, fit)
-plt.show()
+
+fit_y_cumsum = np.cumsum(fit_y)
+
+data = np.convolve(fit_y,np.ones(200,dtype=int),'valid')
+fit_x_ = fit_x[:len(fit_x)-199]
+print('Averaging distance',mum_pr_pixel*50)
+
+fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, fit_x_, data, p0=[0,0,0], full_output=True)
+print("Fit Parameters", fit_parameters)
+fit = sfg_model_off_set(fit_x_, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+
+
+
+#fig, ax = plt.subplots(figsize=(8, 4))
+#ax2 = ax.twinx()
+
+#ax2.plot(fit_x, fit_y,'b-', alpha=0.2)
+#ax.plot(fit_x_, data,'k-')
+#ax.plot(fit_x_, fit,'r--')
+
+#plt.xlabel(r'Propagation length [µm]')
+#ax2.set_ylabel(r'Mean intensity [a.u.]')
+#ax.set_ylabel(r'Cumulated intensity [a.u.]')
+#ax.set_xlim([0, 1134])
+#ax2.set_xlim([0, 1134])
+#ax.set_ylim([0, 800])
+#ax2.set_ylim([0, 20])
+
+#plt.tight_layout()
+#plt.savefig('Figures/cumsum_L_sq.png', transparent=True)
+#plt.show()
+
+print("Variance-Covariance Matrix Fit Parameters:", fit_parameters_cov_var_matrix)
+print(
+    f'a={fit_parameters[0]} +- {np.sqrt(fit_parameters_cov_var_matrix[0, 0])}, b={fit_parameters[1]} +- {np.sqrt(fit_parameters_cov_var_matrix[1, 1])}')
+print(f"alpha = {fit_parameters[1] * 1e4} +- {np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4} 1/m")
+print(
+    f'alpha_dB = {pr_mum_to_dB_pr_cm(fit_parameters[1])} ({pr_mum_to_dB_pr_cm(fit_parameters[1] + np.sqrt(fit_parameters_cov_var_matrix[1, 1]))} {pr_mum_to_dB_pr_cm(fit_parameters[1] - np.sqrt(fit_parameters_cov_var_matrix[1, 1]))}) dB/cm')
+
+print(f'z_offset = {fit_parameters[2]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum' )
+print(f'interaction length = {1134-fit_parameters[2]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum')
+print(f'a = {fit_parameters[0]} +- {np.sqrt(fit_parameters_cov_var_matrix[2, 2])} mum')
+
+residuals = data - fit
+ss_res = np.sum(residuals ** 2)
+
+ss_tot = np.sum((data - np.mean(data)) ** 2)
+r_squared = 1 - (ss_res / ss_tot)
+print('R^2 = ', r_squared)
