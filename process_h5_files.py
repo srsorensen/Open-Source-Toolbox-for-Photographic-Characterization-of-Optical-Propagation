@@ -12,8 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from itertools import zip_longest
 import pandas as pd
-import klepto as klepto
-
+import klepto
 
 def get_polarization_name(filename):
     filename = filename.split(".")[0]
@@ -79,7 +78,7 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
 
 
 directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
-contains = "910nm_optimized_ST3_width_1600nm_TM"
+contains = "910nm_optimized_ST3_width_1600nm_TE"
 f_ending = ".h5"
 
 polarization_plot_dict = {"TM": "b-", "TE": "r-"}
@@ -123,7 +122,7 @@ for file in os.listdir(directory):
         hf.close()
 
 directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
-contains = "945nm_optimized_ST3_width_1600nm_TM"
+contains = "945nm_optimized_ST3_width_1600nm_TE"
 f_ending = ".h5"
 
 polarization_plot_dict = {"TM": "b-", "TE": "r-"}
@@ -167,7 +166,7 @@ for file in os.listdir(directory):
         hf.close()
 
 directory = "C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Processed data/Coupling/"
-contains = "980nm_optimized_ST3_width_1600nm_TM"
+contains = "980nm_optimized_ST3_width_1600nm_TE"
 f_ending = ".h5"
 
 polarization_plot_dict = {"TM": "b-", "TE": "r-"}
@@ -220,7 +219,7 @@ dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 
 
 # print([len(x) for x in TM_data20mW])
-plot_fontsize = 16
+plot_fontsize = 21
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_data, TE_wav, "TE", "b", [910, 980.1],TE_weights)
 te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE","b",[910,980.1],TE_weights1)
 te_dataframe2, te_mean2, te_std2 = plot_polarization_data(dataframe_wav,TE_data2,TE_wav2,"TE","b",[910,980.1],TE_weights2)
@@ -233,19 +232,52 @@ plt.legend(by_label.values(), by_label.keys())
 
 plt.figure(figsize=(10, 6))
 
+file = '850_AlGaAs_1300_scattering_7p0_0p6angle_0_fund_higher2350_.hdf'
+
+
+f = klepto.archives.file_archive(file)
+f.load()
+
+wg_width = np.array(f["wg_width"])
+wg_height = np.array(f["wg_height"])
+wavelengths = np.array(f["wavelengths"])
+sT = np.array(f["sT"])
+sv = np.array(f["sv"])
+sh = np.array(f["sh"])
+
+sT_TM = sT[0]
+sT_TE = sT[1]
+sv_TM = sv[0]
+sv_TE = sv[1]
+sh_TM = sh[0]
+sh_TE = sh[1]
+
+idx = wavelengths > 900
+wavelengths = wavelengths[idx]
+sT_TM = sT_TM[idx]
+sT_TE = sT_TE[idx]
+sv_TM = sv_TM[idx]
+sv_TE = sv_TE[idx]
+sh_TM = sh_TM[idx]
+sh_TE = sh_TE[idx]
+
+c1 = "#377eb8"
+c2 = "#a65628"
+c3 = "#000000"
 if not te_dataframe.empty:
-    plt.plot(te_mean.index, te_mean,color="#E69F00")
-    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2,color="#E69F00")
-    plt.plot(te_mean.index, te_mean + te_std,linestyle="-", color="#E69F00", alpha=0.3)
-    plt.plot(te_mean.index, te_mean - te_std,linestyle="-", color="#E69F00", alpha=0.3)
-    plt.plot(te_mean1.index, te_mean1,color="#0072B2")
-    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2,color="#0072B2")
-    plt.plot(te_mean1.index, te_mean1 - te_std1,linestyle="-", color="#0072B2", alpha=0.3)
-    plt.plot(te_mean1.index, te_mean1 + te_std1,linestyle="-", color="#0072B2", alpha=0.3)
-    plt.plot(te_mean2.index, te_mean2,color="#000000")
-    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2,color="#000000")
-    plt.plot(te_mean2.index, te_mean2 - te_std2,linestyle="-",color="#000000",alpha=0.3)
-    plt.plot(te_mean2.index, te_mean2 + te_std2,linestyle="-", color="#000000", alpha=0.3)
+    plt.plot(te_mean.index, te_mean,color=c1)
+    plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2,color=c1)
+    plt.plot(te_mean.index, te_mean + te_std,linestyle="-", color=c1, alpha=0.3)
+    plt.plot(te_mean.index, te_mean - te_std,linestyle="-", color=c1, alpha=0.3)
+    plt.plot(te_mean1.index, te_mean1,color=c2)
+    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2,color=c2)
+    plt.plot(te_mean1.index, te_mean1 - te_std1,linestyle="-", color=c2, alpha=0.3)
+    plt.plot(te_mean1.index, te_mean1 + te_std1,linestyle="-", color=c2, alpha=0.3)
+    plt.plot(te_mean2.index, te_mean2,color=c3)
+    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2,color=c3)
+    plt.plot(te_mean2.index, te_mean2 - te_std2,linestyle="-",color=c3,alpha=0.3)
+    plt.plot(te_mean2.index, te_mean2 + te_std2,linestyle="-", color=c3, alpha=0.3)
+    plt.plot(wavelengths,sT_TE,linestyle="--",color="r")
     plt.xlabel("Wavelength (nm)",fontsize = plot_fontsize)
     plt.ylabel("Alpha (dB/cm)",fontsize = plot_fontsize)
 #    plt.legend(fontsize=plot_fontsize)
@@ -255,18 +287,19 @@ if not te_dataframe.empty:
 
 if not tm_dataframe.empty:
     plt.figure(figsize=(10, 6))
-    plt.plot(tm_mean.index, tm_mean,color="#E69F00")
-    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2,color="#E69F00")
-    plt.plot(tm_mean.index, tm_mean + tm_std, linestyle="-", color="#E69F00", alpha=0.2)
-    plt.plot(tm_mean.index, tm_mean - tm_std, linestyle="-", color="#E69F00", alpha=0.2)
-    plt.plot(tm_mean1.index, tm_mean1,color="#0072B2")
-    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2,color="#0072B2")
-    plt.plot(tm_mean1.index, tm_mean1 - tm_std1, linestyle="-", color="#0072B2", alpha=0.2)
-    plt.plot(tm_mean1.index, tm_mean1 + tm_std1, linestyle="-", color="#0072B2", alpha=0.2)
-    plt.plot(tm_mean2.index, tm_mean2,color="#000000")
-    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2,color="#000000")
-    plt.plot(tm_mean2.index, tm_mean2 - tm_std2, linestyle="-", color="#000000", alpha=0.2)
-    plt.plot(tm_mean2.index, tm_mean2 + tm_std2, linestyle="-", color="#000000", alpha=0.2)
+    plt.plot(tm_mean.index, tm_mean,color=c1)
+    plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2,color=c1)
+    plt.plot(tm_mean.index, tm_mean + tm_std, linestyle="-", color=c1, alpha=0.2)
+    plt.plot(tm_mean.index, tm_mean - tm_std, linestyle="-", color=c1, alpha=0.2)
+    plt.plot(tm_mean1.index, tm_mean1,color=c2)
+    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2,color=c2)
+    plt.plot(tm_mean1.index, tm_mean1 - tm_std1, linestyle="-", color=c2, alpha=0.2)
+    plt.plot(tm_mean1.index, tm_mean1 + tm_std1, linestyle="-", color=c2, alpha=0.2)
+    plt.plot(tm_mean2.index, tm_mean2,color=c3)
+    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2,color=c3)
+    plt.plot(tm_mean2.index, tm_mean2 - tm_std2, linestyle="-", color=c3, alpha=0.2)
+    plt.plot(tm_mean2.index, tm_mean2 + tm_std2, linestyle="-", color=c3, alpha=0.2)
+    plt.plot(wavelengths,sT_TM,linestyle="--",color="r")
     #plt.axvline(max(tm_max), color='r', linestyle='--', label='Mean: ' + str(round(max(tm_max), 1)) + 'nm')
     plt.xlabel("Wavelength (nm)",fontsize=plot_fontsize)
     plt.ylabel("Alpha (dB/cm)",fontsize=plot_fontsize)
@@ -275,19 +308,19 @@ if not tm_dataframe.empty:
     plt.yticks(fontsize=plot_fontsize)
     plt.xlim(910,980)
 # %%
-if not te_dataframe.empty:
-    hf = h5py.File(directory + contains + "_TE.h5", "w")
-    hf.create_dataset("wavelengths", data=te_mean.index)
-    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean.iloc[cut_index:])
-    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
-    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
-    hf.close()
-if not tm_dataframe.empty:
-    hf = h5py.File(directory + contains + "_TM.h5", "w")
-    hf.create_dataset("wavelengths", data=tm_mean.index)
-    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean.iloc[cut_index:])
-    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
-    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
-    hf.close()
+#if not te_dataframe.empty:
+#    hf = h5py.File(directory + contains + "_TE.h5", "w")
+#    hf.create_dataset("wavelengths", data=te_mean.index)
+#    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean.iloc[cut_index:])
+#    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
+#    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
+#    hf.close()
+#if not tm_dataframe.empty:
+#    hf = h5py.File(directory + contains + "_TM.h5", "w")
+#    hf.create_dataset("wavelengths", data=tm_mean.index)
+#    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean.iloc[cut_index:])
+#    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
+#    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
+#    hf.close()
 
 plt.show()
