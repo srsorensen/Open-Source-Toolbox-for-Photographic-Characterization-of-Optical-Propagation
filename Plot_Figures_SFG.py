@@ -29,6 +29,20 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
+
+def split_maximum(data, num_blocks):  # Splits the data up into num_blocks blocks and finds the maximum for each block
+    blocks = np.array_split(data, num_blocks)
+
+    maxima = []
+    maxima_index = []
+
+    for i in range(len(blocks)):
+        index = np.argmax(blocks[i])
+        maxima.append(blocks[i][index])
+        maxima_index.append((len(blocks[0]) * i) + index)
+
+    return maxima, maxima_index
+
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -322,7 +336,16 @@ remove_index_array = np.unique(remove_index_array.astype(int))
 
 fit_x = np.delete(x_length_crop_mu_array, np.flip(y > 20))[0:-300]
 fit_y = np.flip(np.delete((y - average_background_list), y > 20))[0:-300]
-x_iqr, y_iqr, indexes = remove_outliers_IQR(fit_x,fit_y,10,5)
+x_iqr, y_iqr, indexes = remove_outliers_IQR(fit_x,fit_y,10,1)
+y_max_raw, x_max, = split_maximum(fit_y,100)
+x_max = x_max[0:-2]
+x_max_raw = fit_x[x_max]
+y_max_raw = y_max_raw[0:-2]
+y_max_iqr, x_max, = split_maximum(y_iqr,100)
+x_max = x_max[0:-5]
+x_max_iqr = x_iqr[x_max]
+y_max_iqr = y_max_iqr[0:-5]
+
 
 initial_guess = [ 4.22054755e-06, 6.70214111e-04, -1.25009852e+02]
 fit_rescaling = 1
@@ -359,8 +382,33 @@ ss_res_iqr = np.sum(residuals_iqr ** 2)
 ss_tot_iqr = np.sum((avg_iqr - np.mean(avg_iqr)) ** 2)
 r_squared_iqr = 1 - (ss_res_iqr / ss_tot_iqr)
 
+fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, x_max_raw, y_max_raw, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
+fit_max_raw = sfg_model_off_set(x_max_raw, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+confidence_bounds_fit_max_raw = sfg_model_off_set_confidence_bound(x_max_raw, fit_parameters, fit_parameters_cov_var_matrix)
+#print("Fit Parameters", fit_parameters, "Covariance Matrix", fit_parameters_cov_var_matrix)
+residuals_max_raw = y_max_raw - fit_max_raw
+ss_res_max_raw = np.sum(residuals_max_raw ** 2)
+
+ss_tot_max_raw = np.sum((y_max_raw - np.mean(y_max_raw)) ** 2)
+r_squared_max_raw = 1 - (ss_res_max_raw / ss_tot_max_raw)
+
+fit_parameters, fit_parameters_cov_var_matrix, infodict,mesg, ier,  = curve_fit(sfg_model_off_set, x_max_iqr, y_max_iqr, p0=initial_guess, full_output=True, bounds= ([0,0,-1000],[10e-06, 10e-04, 1000]))
+fit_max_iqr = sfg_model_off_set(x_max_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+confidence_bounds_fit_max_iqr = sfg_model_off_set_confidence_bound(x_max_iqr, fit_parameters, fit_parameters_cov_var_matrix)
+#print("Fit Parameters", fit_parameters, "Covariance Matrix", fit_parameters_cov_var_matrix)
+residuals_max_iqr = y_max_iqr - fit_max_iqr
+ss_res_max_iqr = np.sum(residuals_max_iqr ** 2)
+
+ss_tot_max_iqr = np.sum((y_max_iqr - np.mean(y_max_iqr)) ** 2)
+r_squared_max_iqr = 1 - (ss_res_max_iqr / ss_tot_max_iqr)
+
+
 plt.figure(figsize=(10,6))
-plt.plot(fit_x*1e-3, fit_y, color='k',linestyle='-', alpha=0.2)
+plt.scatter(fit_x*1e-3, fit_y, color='k',linestyle='-', alpha=0.2,s=3)
+plt.scatter(x_max_raw*1e-3,y_max_raw,s=7,color="g")
+plt.plot(x_max_raw*1e-3, fit_max_raw, linestyle="--",color="g",label=f"Fit to max values raw: R\u00b2 {r_squared_max_raw:.2f}")
+plt.scatter(x_max_iqr*1e-3,y_max_iqr,s=7,color="#a65628")
+plt.plot(x_max_iqr*1e-3, fit_max_iqr, linestyle="--",color="#a65628",label=f"Fit to max values outlier corrected: R\u00b2 {r_squared_max_iqr:.2f}")
 plt.plot(fit_x*1e-3, avg, color='r',linestyle='-',alpha=0.6)
 plt.plot(fit_x*1e-3, fit, linestyle="--",color="r",label=f"Fit to raw data: R\u00b2 {r_squared:.2f}")
 plt.plot(x_iqr*1e-3, avg_iqr, color='b',linestyle='-',alpha=0.6)
