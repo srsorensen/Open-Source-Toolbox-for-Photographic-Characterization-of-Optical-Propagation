@@ -176,15 +176,15 @@ class SPA:
                         index_min.append(i)
             abs_tol = abs_tol + 0.01
 
-        num_neighbors = 5
+        num_neighbors = 1
         point_mean = []
         for index in index_min:
             neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
             neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
             point_m = np.mean(smoothed_alpha[neighbor_indexes])
-            point_mean.append(point_m)
-        absolute_point_mean = [abs(num) for num in point_mean]
-        min_point_mean = point_mean.index(min(absolute_point_mean))
+            point_diff = abs(point_m - smoothed_alpha[index])
+            point_mean.append(point_diff)
+        min_point_mean = point_mean.index(min(point_mean))
         ideal_indent = indents[index_min[min_point_mean]]
         self.show_plots = plot_state
         if self.show_plots:
