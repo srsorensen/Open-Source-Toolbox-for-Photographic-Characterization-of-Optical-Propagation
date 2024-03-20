@@ -98,22 +98,52 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
 from math import isclose
-def opt_indent(abs_tolerance,indents,alpha_indent,smoothed_alpha):
-    index_min = []
-    abs_tol = abs_tolerance#0.01
-    while abs_tol < 0.9:
-        if len(index_min) == 0:
-            zero_gradient_minus = []
-            zero_gradient_plus = []
-            for i in range(len(indents) - 1):
-                zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
-                zero_gradient_minus.append(zero_gradient_m)
-                zero_gradient_plus.append(zero_gradient_p)
-                if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
-                    index_min.append(i)
-        abs_tol = abs_tol + 0.01
-        print(index_min)
+def opt_indent(parameter,x_iqr,y_iqr,y_savgol):
+    if parameter == "left indent":
+        indent = np.arange(0, 800, 20)
+        dI = indent[1] - indent[0]
+        alpha_dB_i = []
+        for i in range(len(indent)):  # 525
+            x_iqr = x_iqr[i:]
+            y_iqr = y_iqr[i:]
+            y_savgol = y_savgol[i:]
+            fit_x = x_iqr
+            intensity_values = y_savgol
+            initial_guess = [25, 0.0006, np.min(intensity_values)]
+            fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,
+                                                                                            fit_x,
+                                                                                            intensity_values,
+                                                                                            p0=initial_guess,
+                                                                                            full_output=True,
+                                                                                            maxfev=5000)  # sigma=weights, absolute_sigma=True
+            fit = exponential_function_offset(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+            fit_guess = exponential_function_offset(fit_x, *initial_guess)
+            residuals = fit - intensity_values
+            mean_squared_error = np.mean(residuals ** 2)
+
+            residuals = intensity_values - exponential_function_offset(fit_x, *fit_parameters)
+            ss_res = np.sum(residuals ** 2)
+            ss_tot = np.sum((intensity_values - np.mean(intensity_values)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot)
+
+            alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+            alpha_dB_i.append(alpha_dB)
+        smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1,mode='nearest')
+        alpha_indent = np.gradient(smoothed_alpha, dI)
+        index_min = []
+        abs_tol = 0.01
+        while abs_tol < 0.9:
+            if len(index_min) == 0:
+                zero_gradient_minus = []
+                zero_gradient_plus = []
+                for i in range(len(indent) - 1):
+                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
+                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                    zero_gradient_minus.append(zero_gradient_m)
+                    zero_gradient_plus.append(zero_gradient_p)
+                    if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
+                        index_min.append(i)
+            abs_tol = abs_tol + 0.01
         num_neighbors = 1
         point_mean = []
         for index in index_min:
@@ -123,11 +153,17 @@ def opt_indent(abs_tolerance,indents,alpha_indent,smoothed_alpha):
             point_mean.append(point_m)
         absolute_point_mean = [abs(num) for num in point_mean]
         min_point_mean = point_mean.index(min(absolute_point_mean))
-        ideal_indent = indents[index_min[min_point_mean]]
+        ideal_indent = indent[index_min[min_point_mean]]
+        plt.figure(figsize=(10, 6))
+        plt.plot(indent, alpha_indent, "k")
+        plt.xlabel("Left indents", fontsize=font_size)
+        plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
+        plt.axvline(ideal_indent, color="r", linestyle="--")
+        plt.show()
     return ideal_indent
 
 
-path = "C:/Users/au617007/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
+path = "C:/Users/simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
 
 image = util.img_as_float(imread(path))
 # image = (rotate(image,180,resize=True))
@@ -269,49 +305,9 @@ plt.xlim([0, 8000])
 plt.ylim([0, 110])
 plt.show()
 
-x_iqr, y_iqr, indexes = remove_outliers_IQR(x, y_raw, 10, 1)
-
-y_savgol = savgol_filter(y_iqr, 2000, 1)
-
-
-indent = np.arange(0,800,20)
-alpha_dB_i = []
-alpha_dB_variance_i = []
-for i in range(len(indent)):#525
-    x_iqr = x_iqr[i:]
-    y_iqr = y_iqr[i:]
-    y_savgol = y_savgol[i:]
-
-    fit_x = x_iqr
-    intensity_values = y_savgol
-
-    initial_guess = [25, 0.0006, np.min(intensity_values)]
-    fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, fit_x,
-                                                                                intensity_values, p0=initial_guess,
-                                                                                full_output=True,maxfev=5000)  # sigma=weights, absolute_sigma=True
-    fit = exponential_function_offset(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
-    fit_guess = exponential_function_offset(fit_x, *initial_guess)
-    residuals = fit - intensity_values
-    mean_squared_error = np.mean(residuals ** 2)
-
-    residuals = intensity_values - exponential_function_offset(fit_x, *fit_parameters)
-    ss_res = np.sum(residuals ** 2)
-    ss_tot = np.sum((intensity_values - np.mean(intensity_values)) ** 2)
-    r_squared = 1 - (ss_res / ss_tot)
-
-    alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
-    alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
-    alpha_dB_i.append(alpha_dB)
-    alpha_dB_variance_i.append(alpha_dB_variance)
-dI = indent[1] - indent[0]
-alpha_indent = np.gradient(alpha_dB_i, dI)
-l = indent[np.argmax(alpha_indent)]
-plt.figure(figsize=(10,6))
-plt.plot(indent,alpha_indent,"k")
-plt.xlabel("Left indents")
-plt.ylabel("d$d\\alpha$/d(indent)")
-plt.axvline(l,color="r",linestyle="--")
-plt.show()
+l = opt_indent("left indent",x_iqr,y_iqr,y_savgol)
+print(l)
+#####################################3
 
 x_iqr, y_iqr, indexes = remove_outliers_IQR(x, y_raw, 10, 1)
 
@@ -345,12 +341,13 @@ for i in range(1,len(indent)):#525
     alpha_dB_i.append(alpha_dB)
     alpha_dB_variance_i.append(alpha_dB_variance)
 dI = indent[1] - indent[0]
+alpha_dB_i = savgol_filter(alpha_dB_i,4,1,mode='nearest')
 alpha_indent = np.gradient(alpha_dB_i, dI)
 r = indent[np.argmax(alpha_indent)]
 plt.figure(figsize=(10,6))
 plt.plot(indent[1:len(indent)],alpha_indent,"k")
-plt.xlabel("Right indents")
-plt.ylabel("d$d\\alpha$/d(indent)")
+plt.xlabel("Right indents",fontsize=font_size)
+plt.ylabel("d$d\\alpha$/d(indent)",fontsize=font_size)
 plt.axvline(r,color="r",linestyle="--")
 plt.show()
 print(l)
