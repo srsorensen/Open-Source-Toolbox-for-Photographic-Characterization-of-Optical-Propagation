@@ -176,7 +176,7 @@ class SPA:
                         index_min.append(i)
             abs_tol = abs_tol + 0.01
 
-        num_neighbors = 1
+        num_neighbors = 5
         point_mean = []
         for index in index_min:
             neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
