@@ -19,14 +19,21 @@ from functions import *
 import scipy.ndimage as ndi
 from scipy.fft import ifft2, fftshift, fft2, ifftshift
 from scipy.signal import find_peaks, savgol_filter, convolve, convolve2d
+from math import isclose
 
-
-def mean_image_intensity(image):
+def mean_image_intensity(image,mum_per_pixel):
     disk_size = 20
     mean_disk = disk(disk_size)
 
     mean_image = (rank.mean_percentile(image, footprint=mean_disk, p0=0, p1=1))
-    return mean_image
+    x_path, y_path = path_finder(0.1, in_point, out_point, image)
+    y_raw = mean_image[y_path, x_path]
+
+    x_image = range(len(y_raw))
+
+    x = np.array([x * mum_per_pixel for x in x_image])
+
+    return x, y_raw
 
 
 def find_path(bw_image, start, end):
@@ -117,9 +124,10 @@ def remove_outliers_IQR(x, data, blocks, num_neighbors):
 
     return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
-from math import isclose
-def opt_indent(parameter,x_iqr,y_savgol):
+
+def opt_indent(parameter,x_iqr,y_iqr):
     font_size = 16
+    y_savgol = savgol_filter(y_iqr, 2000, 1)
     indent = np.arange(0, 800, 20)
     dI = indent[1] - indent[0]
     alpha_dB_i = []
@@ -267,17 +275,16 @@ def path_finder(threshold,in_point,out_point,grey_image):
     return x_path, y_path
 
 
-def spiral_fit(x_iqr,y_iqr,y_savgol,x,y_raw,l,r):
+def spiral_fit(x_iqr,y_iqr,x,y_raw,l,r):
     font_size = 16
     x_iqr = x_iqr[l:-r]
     y_iqr = y_iqr[l:-r]
-    y_savgol = y_savgol[l:-r]
     x = x[l:-r]
     y_raw = y_raw[l:-r]
 
     fit_x = x_iqr
-    intensity_values = y_savgol
 
+    #Fit to outlier corrected data
     initial_guess = [25, 0.0006, np.min(y_iqr)]
     fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
                                                                                     y_iqr, p0=initial_guess,
@@ -288,34 +295,32 @@ def spiral_fit(x_iqr,y_iqr,y_savgol,x,y_raw,l,r):
     residuals = y_iqr - exponential_function_offset(fit_x, *fit_parameters)
     ss_res = np.sum(residuals ** 2)
     ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
-    r_squared_raw = 1 - (ss_res / ss_tot)
+    r_squared_outlier = 1 - (ss_res / ss_tot)
 
-    alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
-    alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+    alpha_dB_outlier = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+    alpha_dB_outlier_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 
+
+    #Fit to raw data
     initial_guess = [25, 0.0006, np.min(y_raw)]
     fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x,
                                                                                     y_raw, p0=initial_guess,
                                                                                     full_output=True,
                                                                                     maxfev=5000)  # sigma=weights, absolute_sigma=True
-    fit_r = exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
-    fit_guess = exponential_function_offset(x, *initial_guess)
-    residuals = fit_r - y_raw
-    mean_squared_error = np.mean(residuals ** 2)
-
+    fit_raw = exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
     residuals = y_raw - exponential_function_offset(x, *fit_parameters)
     ss_res = np.sum(residuals ** 2)
     ss_tot = np.sum((y_raw - np.mean(y_raw)) ** 2)
-    r_squared_r = 1 - (ss_res / ss_tot)
+    r_squared_raw = 1 - (ss_res / ss_tot)
 
-    alpha_dB_r = 10 * np.log10(np.exp(fit_parameters[1] * 10))
-    alpha_dB_r_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+    alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+    alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 
     plt.figure()
     plt.plot(x_iqr, fit_outlier, color="#E69F00", linestyle="-", linewidth=3,
-             label=f"Fit to outlier corrected data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-    plt.plot(x, fit_r, color="g", linestyle="-", linewidth=3,
-             label=f"Fit to raw data\n {alpha_dB_r:.1f}$\pm${alpha_dB_r_variance:.1f} dB/cm, R\u00b2: {r_squared_r:.2f}")  # ,
+             label=f"Fit to outlier corrected data\n {alpha_dB_outlier:.1f}$\pm${alpha_dB_outlier_variance:.1f} dB/cm, R\u00b2: {r_squared_outlier:.2f}")  # ,
+    plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
+             label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
     plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
     plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
     lgnd = plt.legend(fontsize=14, scatterpoints=1, frameon=False)
@@ -325,16 +330,16 @@ def spiral_fit(x_iqr,y_iqr,y_savgol,x,y_raw,l,r):
     lgnd.legendHandles[3].set_alpha(1)
     plt.xlabel('Propagation length [mm]', fontsize=font_size)
     plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
-    plt.xlim([min(x), max(x)])
+    plt.xlim([min(x_iqr), max(x)])
     plt.ylim([min(y_raw), max(y_raw) + 5])
     plt.xticks(fontsize=font_size)
     plt.yticks(fontsize=font_size)
     plt.show()
 
-    return alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw, alpha_dB_r, alpha_dB_r_variance,r_squared_r
+    return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw
 
 
-path = "C:/Users/au617007/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
+path = "C:/Users/simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/2023-09-08_10_24_16_651_w31_1.3_waveguide2_spiral.png"
 
 
 in_point, out_point, grey_image = find_input_and_output()
@@ -350,25 +355,16 @@ mum_per_pixel = um_per_pixel(point1, point2, distance_um)
 
 
 
-x_path, y_path = path_finder(0.1,in_point,out_point,grey_image)
 
-mean_image = mean_image_intensity(grey_image)
-
-y_raw = mean_image[y_path, x_path]
-
-x_image = range(len(y_raw))
-
-x = np.array([x * mum_per_pixel for x in x_image])
-
+x, y_raw = mean_image_intensity(grey_image,mum_per_pixel)
 
 x_iqr, y_iqr, indexes = remove_outliers_IQR(x, y_raw, 10, 1)
 
-y_savgol = savgol_filter(y_iqr, 2000, 1)
+l = opt_indent("left indent",x_iqr,y_iqr)
+r = opt_indent("right indent",x_iqr,y_iqr)
 
-font_size = 16
-intensity_values = mean_image[y_path, x_path]
+alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw  = spiral_fit(x_iqr,y_iqr,x,y_raw,l,r)
 
-l = opt_indent("left indent",x_iqr,y_savgol)
-r = opt_indent("right indent",x_iqr,y_savgol)
-
-alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw, alpha_dB_r, alpha_dB_r_variance,r_squared_r  = spiral_fit(x_iqr,y_iqr,y_savgol,x,y_raw,l,r)
+#Goal: One function with parameters image, dist_per_mum. Should have plot state
+#Needs to have a pop up to designate three points (in, out and one for dist)
+#The function should return plot of the optimized parameter + final fit.
