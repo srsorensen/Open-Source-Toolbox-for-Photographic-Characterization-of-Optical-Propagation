@@ -109,17 +109,17 @@ for file in os.listdir(directory):
         # print(weights)
         #print(wav_nm)
         alphas = np.array(hf.get('alpha'))
-        threshold = 80
-        indices_above_threshold = np.where(alphas > threshold)[0]
-        alphas = alphas[alphas <= threshold]
-        alphas = alphas[:978]
-        alphas = np.delete(alphas,454)
-        wav_nm = np.delete(wav_nm, indices_above_threshold)
-        wav_nm = wav_nm[:978]
-        wav_nm = np.delete(wav_nm,454)
-        weights = np.delete(weights, indices_above_threshold)
-        weights = weights[:978]
-        weights = np.delete(weights,454)
+        threshold = 90
+        index = np.where(alphas > threshold)
+        alphas = np.delete(alphas, index)
+        weights = np.delete(weights, index)
+        wav_nm = np.delete(wav_nm, index)
+        r_squared = np.delete(r_squared, index)
+        index = np.where(r_squared < 0.5)
+        alphas = np.delete(alphas, index)
+        weights = np.delete(weights, index)
+        wav_nm = np.delete(wav_nm, index)
+        r_squared = np.delete(r_squared, index)
         y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
         # polarization = get_polarization_name(file)
         if "TE" in file:
