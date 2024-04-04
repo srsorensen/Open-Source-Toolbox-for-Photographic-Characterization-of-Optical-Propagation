@@ -12,6 +12,17 @@ from scipy.optimize import curve_fit, least_squares
 from scipy.signal import find_peaks, savgol_filter, convolve, convolve2d
 from scipy.fft import ifft2, fftshift, fft2, ifftshift
 from math import isclose
+import skimage.graph
+from skimage.io import imread, imshow
+from skimage.morphology import disk, rectangle
+from skimage.color import rgb2gray
+from skimage.transform import rotate
+from skimage.filters import rank, gaussian
+from skimage import util
+from functions import *
+import scipy.ndimage as ndi
+import warnings
+
 
 
 class SPA:
@@ -21,6 +32,7 @@ class SPA:
         self.manual = manual  # When true remember to call manual_input_output and set_um_per_pixel before analyze_image
 
     def set_um_per_pixel(self, point1, point2):
+        warnings.filterwarnings('ignore')
         # For straight waveguides: calculating Euclidean distance between input and output.
         points = [np.array(point1), np.array(point2)]
         dist_pixels = np.linalg.norm(points[0] - points[1])
@@ -28,11 +40,13 @@ class SPA:
         self.mum_per_pixel = self.chiplength / dist_pixels
 
     def get_intensity_array(self, image_array):
+        warnings.filterwarnings('ignore')
         return np.clip(
             np.sqrt(image_array[:, :, 0] ** 2 + image_array[:, :, 1] ** 2 + image_array[:, :, 2] ** 2) / np.sqrt(
                 3 * 255 ** 2) * 255, 0, 255)
 
     def insertion_detection(self, image, show_plots=True):
+        warnings.filterwarnings('ignore')
         # Convert the image to a NumPy array
         image_array = np.array(image)
         image_array_shape = np.shape(image_array)
@@ -97,6 +111,7 @@ class SPA:
 
     def find_waveguide_angle(self, image_array, left_index_guess, left_right_separation, number_of_points,
                              show_plots=True):
+        warnings.filterwarnings('ignore')
         kernel = np.ones([1, 50]) / (1 * 50)
         smoothed_image_array = convolve2d(image_array, kernel)
         # if show_plots:
@@ -117,6 +132,7 @@ class SPA:
         return angle, param, x_index_array, max_height_index_array
 
     def rotate_image(self, image, input_side="left"):
+        warnings.filterwarnings('ignore')
         # Function to rotate images using left/right/flip commands. The script is written with input on the left.
         if input_side == "left":
             image = image.rotate(90, expand=True)
@@ -133,6 +149,7 @@ class SPA:
         return image
 
     def optimize_parameter(self,parameter,image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal):
+        warnings.filterwarnings('ignore')
         plot_state = self.show_plots
         if plot_state:
             self.show_plots = False
@@ -200,6 +217,7 @@ class SPA:
         return ideal_indent
 
     def remove_outliers_IQR(self, x, data, blocks, num_neighbors):
+        warnings.filterwarnings('ignore')
         # Removal of outliers using IQR. Change blocks -> Num_Subsets
         data_blocks = np.array_split(data, blocks)
         x_blocks = np.array_split(x, blocks)
@@ -231,9 +249,11 @@ class SPA:
         return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
 
     def linear_function(self, x, a, b):
+        warnings.filterwarnings('ignore')
         return a * x + b
 
     def exponential_function_offset(self, x, a, b, c):
+        warnings.filterwarnings('ignore')
         return a * np.exp(-b * x) + c
 
     def manual_input_and_output(self, input_point, output_point):
@@ -245,6 +265,7 @@ class SPA:
         self.output_height_index = output_point[1]
 
     def calculate_confidence_interval(self, fit_parameters, fit_parameters_cov_var_matrix, x, confidence_interval):
+        warnings.filterwarnings('ignore')
         # Calculates the error of the fit parameters given a specified confidence interval
         var_a = fit_parameters_cov_var_matrix[0, 0]
         var_b = fit_parameters_cov_var_matrix[1, 1]
@@ -265,6 +286,7 @@ class SPA:
         return fit_upper, fit_lower, upper_b, lower_b
 
     def crop_and_rotate(self, image, input_indent, output_indent, interval):
+        warnings.filterwarnings('ignore')
         # Crop and rotating of image to exclude input/output facet.
         image_array = np.asarray(image)
 
@@ -374,7 +396,7 @@ class SPA:
         return rotated_image_array, x_mu_array, upper, lower
 
     def analyze_image(self, image, input_indent, output_indent, interval, num_neighbors):
-
+        warnings.filterwarnings('ignore')
         rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_indent,
                                                                              output_indent, interval)
 
@@ -473,3 +495,321 @@ class SPA:
             # print(f"R\u00b2 : {r_squared}")
 
         return alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance
+
+################################### SPIRAL #######################################
+    def mean_image_intensity(self,image,mum_per_pixel,in_point,out_point):
+        warnings.filterwarnings('ignore')
+        disk_size = 20
+        mean_disk = disk(disk_size)
+
+        mean_image = (rank.mean_percentile(image, footprint=mean_disk, p0=0, p1=1))
+        x_path, y_path = self.path_finder(0.1, in_point, out_point, image,mum_per_pixel)
+        y_raw = mean_image[y_path, x_path]
+
+        x_image = range(len(y_raw))
+
+        x = np.array([x * mum_per_pixel for x in x_image])
+
+        return x, y_raw
+
+    def find_path(self,bw_image, start, end):
+        warnings.filterwarnings('ignore')
+        costs = np.where(bw_image == 1, 1, 10000)
+        path, cost = skimage.graph.route_through_array(costs, start=start, end=end, fully_connected=True, geometric=True)
+        return path, cost
+
+    def find_input_and_output(self,path):
+        warnings.filterwarnings('ignore')
+        image = util.img_as_float(imread(path))
+        # image = (rotate(image,180,resize=True))
+
+        # plt.figure(figsize=(10, 6))
+        # plt.title("Histogram of channels")
+        # plt.hist(image[:, :, 2].ravel(), bins=256, histtype='step', color='blue')
+        # plt.hist(image[:, :, 1].ravel(), bins=256, histtype='step', color='green')
+        # plt.hist(image[:, :, 0].ravel(), bins=256, histtype='step', color='red')
+        # plt.yscale("log")
+
+        # plt.figure(figsize=(10, 6))
+        # plt.title("Original Image")
+        # imshow(image)
+
+        # grey_image = rgb2gray(image)
+        grey_image = image[:, :, 2]
+
+        indent_list = [0, 0.05, 0.9, 1]
+
+        input_indent_start = int(grey_image.shape[1] * indent_list[0])
+        input_indent_end = int(grey_image.shape[1] * indent_list[1])
+
+        output_indent_start = int(grey_image.shape[1] * indent_list[2])
+        output_indent_end = int(grey_image.shape[1] * indent_list[3])
+
+        input_index = grey_image[:, input_indent_start:input_indent_end] > 0.02
+        #imshow(input_index)
+
+        cy, cx = ndi.center_of_mass(input_index)
+
+        cx = cx + input_indent_start
+
+        input_point = (int(cx), int(cy))
+        # print(input_point)
+
+        output_index = grey_image[:, output_indent_start:output_indent_end] > 0.02
+        cy, cx = ndi.center_of_mass(output_index)
+        cx = grey_image.shape[1] - cx
+
+        output_point = (int(cx), int(cy))
+
+        return input_point, output_point, grey_image
+
+
+    def um_per_pixel(self,point1, point2, distance):
+        warnings.filterwarnings('ignore')
+        # calculating Euclidean distance
+        dist_pixels = np.linalg.norm(point1 - point2)
+        return distance / dist_pixels
+
+    def opt_indent(self,parameter,x_iqr,y_iqr):
+        warnings.filterwarnings('ignore')
+        font_size = 16
+        y_savgol = savgol_filter(y_iqr, 2000, 1)
+        indent = np.arange(0, 800, 20)
+        dI = indent[1] - indent[0]
+        alpha_dB_i = []
+        if parameter == "left indent":
+            for i in range(1,len(indent)):  # 525
+                x_iqr = x_iqr[i:]
+                y_savgol = y_savgol[i:]
+                fit_x = x_iqr
+                intensity_values = y_savgol
+                initial_guess = [25, 0.0006, np.min(intensity_values)]
+                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,
+                                                                                                fit_x,
+                                                                                                intensity_values,
+                                                                                                p0=initial_guess,
+                                                                                                full_output=True,
+                                                                                                maxfev=5000)  # sigma=weights, absolute_sigma=True
+                alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+                alpha_dB_i.append(alpha_dB)
+            smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1,mode='nearest')
+            alpha_indent = np.gradient(smoothed_alpha, dI)
+            index_min = []
+            abs_tol = 0.01
+            while abs_tol < 0.9:
+                if len(index_min) == 0:
+                    zero_gradient_minus = []
+                    zero_gradient_plus = []
+                    for i in range(len(alpha_indent) - 1):
+                        zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
+                        zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                        zero_gradient_minus.append(zero_gradient_m)
+                        zero_gradient_plus.append(zero_gradient_p)
+                        if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
+                            index_min.append(i)
+                abs_tol = abs_tol + 0.01
+            num_neighbors = 1
+            point_mean = []
+            for index in index_min:
+                neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
+                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
+                point_m = np.mean(smoothed_alpha[neighbor_indexes])
+                point_diff = abs(point_m-smoothed_alpha[index])
+                point_mean.append(point_diff)
+            min_point_mean = point_mean.index(min(point_mean))
+            ideal_indent = indent[index_min[min_point_mean]]
+        if self.show_plots:
+            plt.figure(figsize=(10, 6))
+            plt.plot(indent[:-1], alpha_indent, "k")
+            plt.xlabel("Left indents", fontsize=font_size)
+            plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
+            plt.axvline(ideal_indent, color="r", linestyle="--",label="Optimized left indent: " + str(ideal_indent))
+            plt.legend(            plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)]))
+            plt.show()
+
+        elif parameter == "right indent":
+            for i in range(1, len(indent)):  # 525
+                x_iqr = x_iqr[:-i]
+                y_savgol = y_savgol[:-i]
+                fit_x = x_iqr
+                intensity_values = y_savgol
+                initial_guess = [25, 0.0006, np.min(intensity_values)]
+                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,
+                                                                                                fit_x,
+                                                                                                intensity_values,
+                                                                                                p0=initial_guess,
+                                                                                                full_output=True,
+                                                                                                maxfev=5000)  # sigma=weights, absolute_sigma=True
+                alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+                alpha_dB_i.append(alpha_dB)
+            smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1, mode='nearest')
+            alpha_indent = np.gradient(smoothed_alpha, dI)
+            index_min = []
+            abs_tol = 0.01
+            while abs_tol < 0.9:
+                if len(index_min) == 0:
+                    zero_gradient_minus = []
+                    zero_gradient_plus = []
+                    for i in range(len(alpha_indent) - 1):
+                        zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
+                        zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                        zero_gradient_minus.append(zero_gradient_m)
+                        zero_gradient_plus.append(zero_gradient_p)
+                        if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
+                            index_min.append(i)
+                abs_tol = abs_tol + 0.01
+            num_neighbors = 1
+            point_mean = []
+            for index in index_min:
+                neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
+                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
+                point_m = np.mean(smoothed_alpha[neighbor_indexes])
+                point_diff = abs(point_m - smoothed_alpha[index])
+                point_mean.append(point_diff)
+            min_point_mean = point_mean.index(min(point_mean))
+            ideal_indent = indent[index_min[min_point_mean]]
+        if self.show_plots:
+            plt.figure(figsize=(10, 6))
+            plt.plot(indent[:-1], alpha_indent, "k")
+            plt.xlabel("Right indents", fontsize=font_size)
+            plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
+            plt.axvline(ideal_indent, color="r", linestyle="--",label="Optimized right indent: " + str(ideal_indent))
+            plt.legend()
+            plt.show()
+        return ideal_indent
+
+
+    def path_finder(self,threshold,in_point,out_point,grey_image,mum_per_pixel):
+        warnings.filterwarnings('ignore')
+        sobel_h = ndi.sobel(grey_image, 0)
+        sobel_v = ndi.sobel(grey_image, 1)
+        magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
+        font_size = 16
+        path_length = []
+        threshold = np.round(np.linspace(0.01, threshold, 10), 2)
+
+        for i in threshold:
+            bw_waveguide = grey_image > i
+            start = (in_point[1], in_point[0])
+            end = (out_point[1], out_point[0])
+            path, costs = self.find_path(bw_waveguide, start, end)
+            path_length.append(path)
+
+        diff_paths = []
+        path_length_mum = []
+        for element in path_length:
+            sub_length = len(element)
+            length_mum = sub_length * mum_per_pixel
+            diff_paths.append(sub_length)
+            path_length_mum.append(length_mum)
+
+        max_element = max(path_length_mum)
+        max_index = path_length_mum.index(max_element)
+
+        x_path = []
+        y_path = []
+        for i in range(len(path_length[max_index])):
+            x_path.append(path_length[max_index][i][1])
+            y_path.append(path_length[max_index][i][0])
+
+        plt.figure()
+        # plt.title("Image with path")
+        if self.show_plots:
+            plt.plot(*in_point, "ro")
+            plt.plot(*out_point, "ro")
+            plt.scatter(x_path[::100], y_path[::100], s=16, alpha=1, color="red")
+            plt.xlabel("Width [a.u.]", fontsize=font_size)
+            plt.ylabel("Height [a.u.]", fontsize=font_size)
+            plt.xticks(fontsize=font_size)
+            plt.yticks(fontsize=font_size)
+            # plt.axis('off')
+            plt.imshow(magnitude, cmap="turbo")
+        return x_path, y_path
+
+
+    def spiral_fit(self,x_iqr,y_iqr,x,y_raw,l,r):
+        warnings.filterwarnings('ignore')
+        font_size = 16
+        x_iqr = x_iqr[l:-r]
+        y_iqr = y_iqr[l:-r]
+        x = x[l:-r]
+        y_raw = y_raw[l:-r]
+
+        fit_x = x_iqr
+
+        #Fit to outlier corrected data
+        initial_guess = [25, 0.0006, np.min(y_iqr)]
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
+                                                                                        y_iqr, p0=initial_guess,
+                                                                                        full_output=True,
+                                                                                        maxfev=5000)  # sigma=weights, absolute_sigma=True
+        fit_outlier = exponential_function_offset(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+
+        residuals = y_iqr - exponential_function_offset(fit_x, *fit_parameters)
+        ss_res = np.sum(residuals ** 2)
+        ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
+        r_squared_outlier = 1 - (ss_res / ss_tot)
+
+        alpha_dB_outlier = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+        alpha_dB_outlier_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+
+
+        #Fit to raw data
+        initial_guess = [25, 0.0006, np.min(y_raw)]
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x,
+                                                                                        y_raw, p0=initial_guess,
+                                                                                        full_output=True,
+                                                                                        maxfev=5000)  # sigma=weights, absolute_sigma=True
+        fit_raw = exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+        residuals = y_raw - exponential_function_offset(x, *fit_parameters)
+        ss_res = np.sum(residuals ** 2)
+        ss_tot = np.sum((y_raw - np.mean(y_raw)) ** 2)
+        r_squared_raw = 1 - (ss_res / ss_tot)
+
+        alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
+        alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
+        if self.show_plots:
+            plt.figure()
+            plt.plot(x_iqr, fit_outlier, color="#E69F00", linestyle="-", linewidth=3,
+                     label=f"Fit to outlier corrected data\n {alpha_dB_outlier:.1f}$\pm${alpha_dB_outlier_variance:.1f} dB/cm, R\u00b2: {r_squared_outlier:.2f}")  # ,
+            plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
+                     label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+            plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
+            plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
+            lgnd = plt.legend(fontsize=14, scatterpoints=1, frameon=False)
+            lgnd.legendHandles[2]._sizes = [30]
+            lgnd.legendHandles[2].set_alpha(1)
+            lgnd.legendHandles[3]._sizes = [30]
+            lgnd.legendHandles[3].set_alpha(1)
+            plt.xlabel('Propagation length [mm]', fontsize=font_size)
+            plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
+            plt.xlim([min(x_iqr), max(x)])
+            plt.ylim([min(y_raw), max(y_raw) + 5])
+            plt.xticks(fontsize=font_size)
+            plt.yticks(fontsize=font_size)
+        plt.show()
+
+        return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw
+
+    def spiral_waveguide(self,image_directory,distance_um):
+        warnings.filterwarnings('ignore')
+        path = image_directory
+        in_point, out_point, grey_image = self.find_input_and_output(path)
+
+        out_point = (out_point[0], out_point[1] + 210)  # (1886,1208)
+        in_point = (in_point[0], in_point[1] - 15)  # -80
+
+        point1 = np.array((in_point[0], in_point[1]))
+        point2 = np.array((in_point[0], out_point[1]))  # 1985
+
+        mum_per_pixel = self.um_per_pixel(point1, point2, distance_um)
+
+        x, y_raw = self.mean_image_intensity(grey_image, mum_per_pixel,in_point,out_point)
+
+        x_iqr, y_iqr, indexes = self.remove_outliers_IQR(x, y_raw, 10, 1)
+
+        l = self.opt_indent("left indent", x_iqr, y_iqr)
+        r = self.opt_indent("right indent", x_iqr, y_iqr)
+
+        alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw = self.spiral_fit(x_iqr, y_iqr, x, y_raw, l, r)
+        return alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw
