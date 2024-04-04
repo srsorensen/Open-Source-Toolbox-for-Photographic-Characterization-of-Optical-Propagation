@@ -25,4 +25,4 @@ image = Image.open(image_path)
 #Flip to make sure input is on the left
 image = spa.rotate_image(image,"flip")
 
-print(spa.straight_waveguide(image,optimize_parameter))
+alpha_dB, r_squared, alpha_dB_variance = spa.straight_waveguide(image,optimize_parameter
