@@ -318,11 +318,7 @@ class SPA:
 
         separation = int((right_indent - left_indent - left_index_guess) / number_of_points)
 
-        angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(
-            cropped_image_array[:, :, 2],
-            left_index_guess, separation,
-            number_of_points,
-            self.show_plots)
+        angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(cropped_image_array[:, :, 2],left_index_guess, separation,number_of_points)
 
         # Rotate picture and plot it with the upper and lower limit
 
@@ -408,6 +404,19 @@ class SPA:
 
         return alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance
 
+    def straight_waveguide(self,image,optimize_parameter):
+        IQR_neighbor_removal = 1
+        if optimize_parameter:
+            input_indent = self.optimize_parameter("left indent", image, 200, 100, 80,IQR_neighbor_removal)
+            output_indent = self.optimize_parameter("right indent", image, 200, 100, 80,IQR_neighbor_removal)
+            interval = self.optimize_parameter("sum width", image, 200, 100, 80,IQR_neighbor_removal)
+        else:
+            input_indent = np.int32(input("Enter left indent: "))
+            output_indent = np.int32(input("Enter right indent: "))
+            interval = np.int32(input("Enter sum width: "))
+            IQR_neighbor_removal = np.int32(input("Enter width of removal of IQR: "))
+
+        return self.analyze_image(image, input_indent, output_indent, interval, IQR_neighbor_removal)
 ################################### SPIRAL #######################################
 
     def mean_image_intensity(self,image,mum_per_pixel,in_point,out_point):
