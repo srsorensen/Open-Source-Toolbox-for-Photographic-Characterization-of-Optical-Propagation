@@ -402,7 +402,7 @@ class SPA:
             plt.ylabel('Sum of pixel intensity [a.u.]')
             plt.show()
 
-        return alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance
+        return alpha_dB, r_squared, alpha_dB_variance
 
     def straight_waveguide(self,image,optimize_parameter):
         IQR_neighbor_removal = 1
