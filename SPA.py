@@ -28,8 +28,16 @@ import warnings
 class SPA:
     def __init__(self, show_plots, chiplength, manual=False):
         self.show_plots = show_plots
-        self.chiplength = chiplength  # 7229 um measured on the GDS, 2445 is the pixel width of the sensor (Both numbers inherent of the sensor and lens)
-        self.manual = manual  # When true remember to call manual_input_output and set_um_per_pixel before analyze_image
+        self.chiplength = chiplength
+        self.manual = manual  # Allows for manual input of input/output by calling and set_um_per_pixel before analyze_image
+
+    def manual_input_and_output(self, input_point, output_point):
+        # For spiral waveguides the input/output needs to be manually input.
+        self.input_width_index = input_point[0]
+        self.input_height_index = input_point[1]
+
+        self.output_width_index = output_point[0]
+        self.output_height_index = output_point[1]
 
     def set_um_per_pixel(self, point1, point2):
         warnings.filterwarnings('ignore')
@@ -46,7 +54,7 @@ class SPA:
             np.sqrt(image_array[:, :, 0] ** 2 + image_array[:, :, 1] ** 2 + image_array[:, :, 2] ** 2) / np.sqrt(
                 3 * 255 ** 2) * 255, 0, 255)
 
-    def insertion_detection(self, image, show_plots=True):
+    def insertion_detection(self, image):
         warnings.filterwarnings('ignore')
         # Convert the image to a NumPy array
         image_array = np.array(image)
@@ -93,13 +101,17 @@ class SPA:
 
         output_height_index = int((resized_output_index[0] + lower_index_limit) * scale_factor)
         output_width_index = int((resized_output_index[1] + left_index_limit) * scale_factor)
+
         return input_width_index, input_height_index, output_width_index, output_height_index
 
     def find_waveguide_angle(self, image_array, left_index_guess, left_right_separation, number_of_points):
-        #Find the angle of the waveguide to ensure it is horizontal and rotate the image.
+        #Find the angle of the waveguide and rotate the image to ensure it is always horizontal.
         warnings.filterwarnings('ignore')
+        #Define kernel for convolution
         kernel = np.ones([1, 50]) / (1 * 50)
         smoothed_image_array = convolve2d(image_array, kernel)
+
+        #Define the position of the waveguide
         x_index_array = []
         max_height_index_array = []
         for index in range(0, number_of_points):
@@ -108,7 +120,7 @@ class SPA:
             max_array = np.flip(np.mean(smoothed_image_array[:, x_index: left_index_guess + x_index + 1], axis=1))
             max_height_index = np.argmax(max_array - np.mean(max_array))
             max_height_index_array.append(max_height_index)
-
+        #Fit a linear function between input/output and find the angle
         param, covparam = curve_fit(self.linear_function, x_index_array, max_height_index_array)
         angle = np.degrees(np.arctan(param[0]))
 
@@ -139,29 +151,29 @@ class SPA:
             self.show_plots = False
         converge_alpha = []
 
-        #Fitting for varying parameters
+        #Fitting for varying indents/sum widths
         if parameter == "left indent":
             indents = np.arange(201, 501, 2)
             for i in range(len(indents)):
-                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,waveguide_sum_width, IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "right indent":
             indents = np.arange(150, 450, 2)
             for i in range(len(indents)):
-                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indent,indents[i],waveguide_sum_width,IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent,indents[i],waveguide_sum_width,IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
             indents = np.arange(40, 200, 1)
             for i in range(len(indents)):
-                alpha_dB, r_squared, fit_x, fit_y, alpha_dB_variance = self.analyze_image(image, left_indent,right_indent, indents[i],IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent,right_indent, indents[i],IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         else:
             raise Exception("Specify parameter 'left indent', 'right indent' or 'sum width'")
 
-        #differentiate and smooth the determined alpha values
+        #differentiate and smooth the determined loss values
         dI = indents[1] - indents[0]
         smoothed_alpha = savgol_filter(converge_alpha, 4, 1, mode="nearest")
         alpha_indent = np.gradient(smoothed_alpha, dI)
@@ -191,6 +203,8 @@ class SPA:
             point_m = np.mean(smoothed_alpha[neighbor_indexes])
             point_diff = abs(point_m - smoothed_alpha[index])
             point_mean.append(point_diff)
+
+        #Finding the point where the variation in adjacent points is minimum
         min_point_mean = point_mean.index(min(point_mean))
         ideal_indent = indents[index_min[min_point_mean]]
 
@@ -199,45 +213,43 @@ class SPA:
             plt.figure(figsize=(10, 6))
             plt.plot(indents, alpha_indent)
             plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
-            plt.xlabel(parameter)
-            plt.ylabel("$d\\alpha$/d(indent)")
-            plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)])
-            plt.title(parameter + " convergence with optimal indent: " + str(ideal_indent))
+            plt.xlabel(parameter,fontsize=20)
+            plt.ylabel("$d\\alpha$/d(indent)",fontsize=20)
+            plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_indent)], fontsize=16)
             plt.show()
-
         return ideal_indent
 
-    def remove_outliers_IQR(self, x, data, blocks, num_neighbors):
+    def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
         warnings.filterwarnings('ignore')
         # Removal of outliers using the interquartile method.
-        data_blocks = np.array_split(data, blocks)
-        x_blocks = np.array_split(x, blocks)
-        x_blocks_indexes = [x[-1] for x in x_blocks]
+        data_subsets = np.array_split(data, subsets)
+        x_subsets = np.array_split(x, subsets)
+        x_subsets_indexes = [x[-1] for x in x_subsets]
 
-        for i in range(len(data_blocks)):
-            Q1 = np.percentile(data_blocks[i], 25, interpolation='midpoint')
-            Q3 = np.percentile(data_blocks[i], 75, interpolation='midpoint')
+        for i in range(len(data_subsets)):
+            Q1 = np.percentile(data_subsets[i], 25, interpolation='midpoint')
+            Q3 = np.percentile(data_subsets[i], 75, interpolation='midpoint')
             IQR = Q3 - Q1
 
             upper = Q3 + 1.5 * IQR
             lower = Q1 - 1.5 * IQR
 
-            upper_array = np.where(data_blocks[i] >= upper)[0]
-            lower_array = np.where(data_blocks[i] <= lower)[0]
+            upper_array = np.where(data_subsets[i] >= upper)[0]
+            lower_array = np.where(data_subsets[i] <= lower)[0]
 
             remove_array = np.concatenate((upper_array, lower_array))
             new_remove_array = []
 
             for index in remove_array:  # Finding indexes of neighbors to detected outliers
                 neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(data_blocks[i])]
+                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(data_subsets[i])]
                 new_remove_array += neighbor_indexes
 
             new_remove_array = list(set(new_remove_array))
-            data_blocks[i] = np.delete(data_blocks[i], new_remove_array)  # removing outliers and neighbors from data
-            x_blocks[i] = np.delete(x_blocks[i], new_remove_array)
+            data_subsets[i] = np.delete(data_subsets[i], new_remove_array)  # removing outliers and neighbors from data
+            x_subsets[i] = np.delete(x_subsets[i], new_remove_array)
 
-        return np.concatenate(x_blocks), np.concatenate(data_blocks), x_blocks_indexes
+        return np.concatenate(x_subsets), np.concatenate(data_subsets), x_subsets_indexes
 
     def linear_function(self, x, a, b):
         warnings.filterwarnings('ignore')
@@ -246,14 +258,6 @@ class SPA:
     def exponential_function_offset(self, x, a, b, c):
         warnings.filterwarnings('ignore')
         return a * np.exp(-b * x) + c
-
-    def manual_input_and_output(self, input_point, output_point):
-        # For spiral waveguides the input/output needs to be manually input.
-        self.input_width_index = input_point[0]
-        self.input_height_index = input_point[1]
-
-        self.output_width_index = output_point[0]
-        self.output_height_index = output_point[1]
 
     def calculate_confidence_interval(self, fit_parameters, fit_parameters_cov_var_matrix, x, confidence_interval):
         warnings.filterwarnings('ignore')
@@ -287,7 +291,7 @@ class SPA:
             output_width_index = self.output_width_index
         else:
             input_width_index, input_height_index, output_width_index, output_height_index = self.insertion_detection(
-                image.copy(), self.show_plots)
+                image.copy())
 
             input_point = (input_width_index, input_height_index)
             output_point = (output_width_index, output_height_index)
@@ -320,8 +324,7 @@ class SPA:
 
         angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(cropped_image_array[:, :, 2],left_index_guess, separation,number_of_points)
 
-        # Rotate picture and plot it with the upper and lower limit
-
+        # Rotate image
         left_indent = left_indent
         right_indent = right_indent
         top_indent = top_indent
@@ -356,19 +359,11 @@ class SPA:
         # Sum values along the waveguide in an area
         y_raw = np.sum(cropped_image, axis=0)
 
-        # Number of sections to split up the data for the IQR method
-        smoothing = 10
-        x_iqr, y_iqr, x_blocks = self.remove_outliers_IQR(x, y_raw, smoothing, num_neighbors)
+        # Removing outliers using the interquartile method
+        num_subsets = 10
+        x_iqr, y_iqr, x_subsets = self.remove_outliers_IQR(x, y_raw, num_subsets, num_neighbors)
 
         y_savgol = savgol_filter(y_iqr, 501, 1, mode="nearest")
-
-        if self.show_plots:
-            plt.figure(figsize=(10, 6))
-            plt.plot(x, y_raw, 'b-', label="Raw data")
-            plt.legend()
-            plt.xlabel('x Length [um]')
-            plt.ylabel('Sum of pixel intensities')
-            plt.show()
 
         fit_x = x_iqr
         fit_y = y_iqr
@@ -389,7 +384,7 @@ class SPA:
         alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
         if self.show_plots:
-            font_size = 14
+            font_size = 18
             plt.figure(figsize=(10, 6))
             plt.scatter(fit_x, fit_y, alpha=0.2, label="Outlier corrected data", s=4, color="k")
             plt.plot(fit_x, y_savgol, 'r-', label="Smoothed data")
@@ -436,7 +431,7 @@ class SPA:
         return x, y_raw
 
     def find_path(self,bw_image, start, end):
-        #Making the cost path image
+        #Converting the black-white image to a cost path matrix
         warnings.filterwarnings('ignore')
         costs = np.where(bw_image == 1, 1, 10000)
         path, cost = skimage.graph.route_through_array(costs, start=start, end=end, fully_connected=True, geometric=True)
@@ -483,63 +478,23 @@ class SPA:
     def opt_indent(self,parameter,x_iqr,y_iqr):
         #Optimizing the parameters used in the fitting of the spiral waveguides
         warnings.filterwarnings('ignore')
-        font_size = 16
+        font_size = 18
         y_savgol = savgol_filter(y_iqr, 2000, 1)
         #Determining the alpha values for fits of varying parameters.
         indent = np.arange(0, 800, 20)
         dI = indent[1] - indent[0]
         alpha_dB_i = []
         if parameter == "left indent":
-            for i in range(1,len(indent)):  # 525
+            for i in range(1,len(indent)):
                 x_iqr = x_iqr[i:]
                 y_savgol = y_savgol[i:]
                 fit_x = x_iqr
                 intensity_values = y_savgol
                 initial_guess = [25, 0.0006, np.min(intensity_values)]
-                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,
-                                                                                                fit_x,
-                                                                                                intensity_values,
-                                                                                                p0=initial_guess,
-                                                                                                full_output=True,
-                                                                                                maxfev=5000)  # sigma=weights, absolute_sigma=True
+                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(
+                exponential_function_offset, fit_x, intensity_values, p0=initial_guess, full_output=True,maxfev=5000)
                 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
                 alpha_dB_i.append(alpha_dB)
-            #Differentiating the alpha values and finding points there the gradient is ~0
-            smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1,mode='nearest')
-            alpha_indent = np.gradient(smoothed_alpha, dI)
-            index_min = []
-            abs_tol = 0.01
-            while abs_tol < 0.9:
-                if len(index_min) == 0:
-                    zero_gradient_minus = []
-                    zero_gradient_plus = []
-                    for i in range(len(alpha_indent) - 1):
-                        zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                        zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
-                        zero_gradient_minus.append(zero_gradient_m)
-                        zero_gradient_plus.append(zero_gradient_p)
-                        if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
-                            index_min.append(i)
-                abs_tol = abs_tol + 0.01
-            #Finding points where the variation in the nearby points are also ~0
-            num_neighbors = 1
-            point_mean = []
-            for index in index_min:
-                neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
-                point_m = np.mean(smoothed_alpha[neighbor_indexes])
-                point_diff = abs(point_m-smoothed_alpha[index])
-                point_mean.append(point_diff)
-            min_point_mean = point_mean.index(min(point_mean))
-            ideal_indent = indent[index_min[min_point_mean]]
-            if self.show_plots:
-                plt.figure(figsize=(10, 6))
-                plt.plot(indent[:-1], alpha_indent, "k")
-                plt.xlabel("Left indents", fontsize=font_size)
-                plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
-                plt.axvline(ideal_indent, color="r", linestyle="--",label="Optimized left indent: " + str(ideal_indent))
-                plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)],fontsize=font_size)
-                plt.show()
 
         elif parameter == "right indent":
             for i in range(1, len(indent)):  # 525
@@ -548,48 +503,45 @@ class SPA:
                 fit_x = x_iqr
                 intensity_values = y_savgol
                 initial_guess = [25, 0.0006, np.min(intensity_values)]
-                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,
-                                                                                                fit_x,
-                                                                                                intensity_values,
-                                                                                                p0=initial_guess,
-                                                                                                full_output=True,
-                                                                                                maxfev=5000)  # sigma=weights, absolute_sigma=True
+                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,fit_x,intensity_values,p0=initial_guess,full_output=True,maxfev=5000)
                 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
                 alpha_dB_i.append(alpha_dB)
-            smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1, mode='nearest')
-            alpha_indent = np.gradient(smoothed_alpha, dI)
-            index_min = []
-            abs_tol = 0.01
-            while abs_tol < 0.9:
-                if len(index_min) == 0:
-                    zero_gradient_minus = []
-                    zero_gradient_plus = []
-                    for i in range(len(alpha_indent) - 1):
-                        zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                        zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
-                        zero_gradient_minus.append(zero_gradient_m)
-                        zero_gradient_plus.append(zero_gradient_p)
-                        if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
-                            index_min.append(i)
-                abs_tol = abs_tol + 0.01
-            num_neighbors = 1
-            point_mean = []
-            for index in index_min:
-                neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-                neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
-                point_m = np.mean(smoothed_alpha[neighbor_indexes])
-                point_diff = abs(point_m - smoothed_alpha[index])
-                point_mean.append(point_diff)
-            min_point_mean = point_mean.index(min(point_mean))
-            ideal_indent = indent[index_min[min_point_mean]]
-            if self.show_plots:
-                plt.figure(figsize=(10, 6))
-                plt.plot(indent[:-1], alpha_indent, "k")
-                plt.xlabel("Right indents", fontsize=font_size)
-                plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
-                plt.axvline(ideal_indent, color="r", linestyle="--", label="Optimized right indent: " + str(ideal_indent))
-                plt.legend(["$\\alpha$ values", "Smoothed alpha values", "Optimal indent: " + str(ideal_indent)],fontsize=font_size)
-                plt.show()
+        #For the smoothed alpha values find points where the gradient is ~0
+        smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1, mode='nearest')
+        alpha_indent = np.gradient(smoothed_alpha, dI)
+        index_min = []
+        abs_tol = 0.01
+        while abs_tol < 0.9:
+            if len(index_min) == 0:
+                zero_gradient_minus = []
+                zero_gradient_plus = []
+                for i in range(len(alpha_indent) - 1):
+                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
+                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                    zero_gradient_minus.append(zero_gradient_m)
+                    zero_gradient_plus.append(zero_gradient_p)
+                    if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
+                        index_min.append(i)
+            abs_tol = abs_tol + 0.01
+        #Comparing the previously found points to surrounding points and findning the minimum
+        num_neighbors = 5
+        point_mean = []
+        for index in index_min:
+            neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
+            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
+            point_m = np.mean(smoothed_alpha[neighbor_indexes])
+            point_diff = abs(point_m - smoothed_alpha[index])
+            point_mean.append(point_diff)
+        min_point_mean = point_mean.index(min(point_mean))
+        ideal_indent = indent[index_min[min_point_mean]]
+        if self.show_plots:
+            plt.figure(figsize=(10, 6))
+            plt.plot(indent[:-1], alpha_indent, "k")
+            plt.xlabel(parameter, fontsize=font_size)
+            plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
+            plt.axvline(ideal_indent, color="r", linestyle="--",label="Optimized " + parameter + " " + str(ideal_indent))
+            plt.legend(["Smoothed $\\alpha$ values", "Optimal indent: " + str(ideal_indent)],fontsize=font_size)
+            plt.show()
         return ideal_indent
 
 
@@ -599,7 +551,7 @@ class SPA:
         sobel_h = ndi.sobel(grey_image, 0)
         sobel_v = ndi.sobel(grey_image, 1)
         magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
-        font_size = 16
+        font_size = 18
         path_length = []
         threshold = np.round(np.linspace(0.01, threshold, 10), 2)
         #Using different threshold values to find different path lengths
@@ -643,7 +595,7 @@ class SPA:
 
     def spiral_fit(self,x_iqr,y_iqr,x,y_raw,l,r):
         warnings.filterwarnings('ignore')
-        font_size = 16
+        font_size = 18
         x_iqr = x_iqr[l:-r]
         y_iqr = y_iqr[l:-r]
         x = x[l:-r]
