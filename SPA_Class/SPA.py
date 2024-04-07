@@ -23,6 +23,7 @@ from functions import *
 import scipy.ndimage as ndi
 import warnings
 
+warnings.filterwarnings('ignore')
 
 
 class SPA:
@@ -40,7 +41,6 @@ class SPA:
         self.output_height_index = output_point[1]
 
     def set_um_per_pixel(self, point1, point2):
-        warnings.filterwarnings('ignore')
         # For straight waveguides: calculating Euclidean distance between input and output.
         points = [np.array(point1), np.array(point2)]
         dist_pixels = np.linalg.norm(points[0] - points[1])
@@ -49,13 +49,11 @@ class SPA:
 
     def get_intensity_array(self, image_array):
         #Convert array values to 8-bit compatible values.
-        warnings.filterwarnings('ignore')
         return np.clip(
             np.sqrt(image_array[:, :, 0] ** 2 + image_array[:, :, 1] ** 2 + image_array[:, :, 2] ** 2) / np.sqrt(
                 3 * 255 ** 2) * 255, 0, 255)
 
     def insertion_detection(self, image):
-        warnings.filterwarnings('ignore')
         # Convert the image to a NumPy array
         image_array = np.array(image)
         image_array_shape = np.shape(image_array)
@@ -106,7 +104,6 @@ class SPA:
 
     def find_waveguide_angle(self, image_array, left_index_guess, left_right_separation, number_of_points):
         #Find the angle of the waveguide and rotate the image to ensure it is always horizontal.
-        warnings.filterwarnings('ignore')
         #Define kernel for convolution
         kernel = np.ones([1, 50]) / (1 * 50)
         smoothed_image_array = convolve2d(image_array, kernel)
@@ -127,7 +124,6 @@ class SPA:
         return angle, param, x_index_array, max_height_index_array
 
     def rotate_image(self, image, input_side="left"):
-        warnings.filterwarnings('ignore')
         # Function to rotate images using left/right/flip commands. The script is written with input on the left.
         if input_side == "left":
             image = image.rotate(90, expand=True)
@@ -145,7 +141,6 @@ class SPA:
 
     def optimize_parameter(self,parameter,image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal):
         #Optimizing the parameters used in the straight waveguide fit
-        warnings.filterwarnings('ignore')
         plot_state = self.show_plots
         if plot_state:
             self.show_plots = False
@@ -220,7 +215,6 @@ class SPA:
         return ideal_indent
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
-        warnings.filterwarnings('ignore')
         # Removal of outliers using the interquartile method.
         data_subsets = np.array_split(data, subsets)
         x_subsets = np.array_split(x, subsets)
@@ -252,15 +246,12 @@ class SPA:
         return np.concatenate(x_subsets), np.concatenate(data_subsets), x_subsets_indexes
 
     def linear_function(self, x, a, b):
-        warnings.filterwarnings('ignore')
         return a * x + b
 
     def exponential_function_offset(self, x, a, b, c):
-        warnings.filterwarnings('ignore')
         return a * np.exp(-b * x) + c
 
     def calculate_confidence_interval(self, fit_parameters, fit_parameters_cov_var_matrix, x, confidence_interval):
-        warnings.filterwarnings('ignore')
         # Calculates the error of the fit parameters given a specified confidence interval
         var_a = fit_parameters_cov_var_matrix[0, 0]
         var_b = fit_parameters_cov_var_matrix[1, 1]
@@ -281,7 +272,6 @@ class SPA:
         return fit_upper, fit_lower, upper_b, lower_b
 
     def crop_and_rotate(self, image, input_indent, output_indent, interval):
-        warnings.filterwarnings('ignore')
         # Crop and rotating of image to exclude input/output facet.
         image_array = np.asarray(image)
 
@@ -344,7 +334,6 @@ class SPA:
 
     def analyze_image(self, image, input_indent, output_indent, interval, num_neighbors):
         #The fitting of the image
-        warnings.filterwarnings('ignore')
         rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_indent,output_indent, interval)
 
         cropped_image_height = np.shape(rotated_image_array)[0]
@@ -416,7 +405,6 @@ class SPA:
 
     def mean_image_intensity(self,image,mum_per_pixel,in_point,out_point):
         #Meaning the image
-        warnings.filterwarnings('ignore')
         disk_size = 20
         mean_disk = disk(disk_size)
 
@@ -432,14 +420,12 @@ class SPA:
 
     def find_path(self,bw_image, start, end):
         #Converting the black-white image to a cost path matrix
-        warnings.filterwarnings('ignore')
         costs = np.where(bw_image == 1, 1, 10000)
         path, cost = skimage.graph.route_through_array(costs, start=start, end=end, fully_connected=True, geometric=True)
         return path, cost
 
     def find_input_and_output(self,path):
         #Determining the input/output facet
-        warnings.filterwarnings('ignore')
         image = util.img_as_float(imread(path))
         grey_image = image[:, :, 2]
 
@@ -469,15 +455,12 @@ class SPA:
 
 
     def um_per_pixel(self,point1, point2, distance):
-        warnings.filterwarnings('ignore')
-
         # calculating Euclidean distance
         dist_pixels = np.linalg.norm(point1 - point2)
         return distance / dist_pixels
 
     def opt_indent(self,parameter,x_iqr,y_iqr):
         #Optimizing the parameters used in the fitting of the spiral waveguides
-        warnings.filterwarnings('ignore')
         font_size = 18
         y_savgol = savgol_filter(y_iqr, 2000, 1)
         #Determining the alpha values for fits of varying parameters.
@@ -547,7 +530,6 @@ class SPA:
 
     def path_finder(self,threshold,in_point,out_point,grey_image,mum_per_pixel):
         #Using the cost path image to find the optimal path
-        warnings.filterwarnings('ignore')
         sobel_h = ndi.sobel(grey_image, 0)
         sobel_v = ndi.sobel(grey_image, 1)
         magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
@@ -594,7 +576,6 @@ class SPA:
 
 
     def spiral_fit(self,x_iqr,y_iqr,x,y_raw,l,r):
-        warnings.filterwarnings('ignore')
         font_size = 18
         x_iqr = x_iqr[l:-r]
         y_iqr = y_iqr[l:-r]
@@ -659,7 +640,6 @@ class SPA:
         return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw
 
     def spiral_waveguide(self,image_directory,distance_um,parameter_optimize):
-        warnings.filterwarnings('ignore')
         path = image_directory
         in_point, out_point, grey_image = self.find_input_and_output(path)
 
