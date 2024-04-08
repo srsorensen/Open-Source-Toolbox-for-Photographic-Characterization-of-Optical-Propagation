@@ -624,7 +624,7 @@ class SPA:
                      label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
             plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
             plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
-            lgnd = plt.legend(fontsize=14, scatterpoints=1, frameon=False)
+            lgnd = plt.legend(fontsize=15, scatterpoints=1, frameon=False)
             lgnd.legendHandles[2]._sizes = [30]
             lgnd.legendHandles[2].set_alpha(1)
             lgnd.legendHandles[3]._sizes = [30]
