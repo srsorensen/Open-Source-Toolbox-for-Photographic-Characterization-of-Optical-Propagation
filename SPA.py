@@ -2,59 +2,54 @@
 """
 Created on Fri Sep 29 09:08:25 2023
 
-@authors: Peter Tønning, Kevin Bach Gravesen, Magnus Linnet Madsen, Frederik P, Frederik S
+@authors: Magnus Linnet Madsen, Frederik Philip, Frederik Sørensen and Simon Sørensen
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-from scipy.optimize import curve_fit, least_squares
-from scipy.signal import find_peaks, savgol_filter, convolve, convolve2d
-from scipy.fft import ifft2, fftshift, fft2, ifftshift
+from scipy.optimize import curve_fit
+from scipy.signal import savgol_filter, convolve2d
 from math import isclose
 import skimage.graph
-from skimage.io import imread, imshow
-from skimage.morphology import disk, rectangle
-from skimage.color import rgb2gray
-from skimage.transform import rotate
-from skimage.filters import rank, gaussian
+from skimage.io import imread
+from skimage.morphology import disk
+from skimage.filters import rank
 from skimage import util
-from functions import *
 import scipy.ndimage as ndi
 import cv2
 import warnings
 
 warnings.filterwarnings('ignore')
 
-class Camera:
-    
-    def __init__(self, device_number=0):
-        self.__video_capture = cv2.VideoCapture(device_number)        
 
-    
+class Camera:
+
+    def __init__(self, device_number=0):
+        self.__video_capture = cv2.VideoCapture(device_number)
+
     def __del__(self):
         self.__video_capture.release()
 
-
     def capture(self, filename=None):
-       # Capture the video frame
+        # Capture the video frame
 
-       ret, frame = self.__video_capture.read()
-       #frame = cv2.flip(frame,0)
-       #frame = cv2.flip(frame,1)
-       cv2.waitKey(1)
-       if ret:
-           if filename != None:
-               cv2.imwrite(filename, frame)     # save frame as JPEG file
-           return frame
-       else:
-           raise Exception("No Image frame acquired") 
-    
-    def camsetup(self,width=2448,height=2048):
-        #self.__video_capture.set(cv2.CAP_PROP_SETTINGS, 1)
+        ret, frame = self.__video_capture.read()
+        # frame = cv2.flip(frame,0)
+        # frame = cv2.flip(frame,1)
+        cv2.waitKey(1)
+        if ret:
+            if filename != None:
+                cv2.imwrite(filename, frame)  # save frame as JPEG file
+            return frame
+        else:
+            raise Exception("No Image frame acquired")
+
+    def camsetup(self, width=2448, height=2048):
+        # self.__video_capture.set(cv2.CAP_PROP_SETTINGS, 1)
         self.__video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.__video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.__video_capture.set(cv2.CAP_PROP_SETTINGS,1)
+        self.__video_capture.set(cv2.CAP_PROP_SETTINGS, 1)
         if not self.__video_capture.isOpened():
             print("Cannot open camera")
             exit()
@@ -66,11 +61,11 @@ class Camera:
                 print("Can't receive frame (stream end?). Exiting ...")
                 break
 
-            #frame = cv2.flip(frame,0)
-            #frame = cv2.flip(frame,1)
-            resized_frame = cv2.resize(frame, (1600, 900))   
+            # frame = cv2.flip(frame,0)
+            # frame = cv2.flip(frame,1)
+            resized_frame = cv2.resize(frame, (1600, 900))
             cv2.imshow('frame', resized_frame)
-            
+
             if cv2.waitKey(1) == ord('q'):
                 break
         # When everything done, release the capture
@@ -99,7 +94,7 @@ class SPA:
         self.mum_per_pixel = self.chiplength / dist_pixels
 
     def get_intensity_array(self, image_array):
-        #Convert array values to 8-bit compatible values.
+        # Convert array values to 8-bit compatible values.
         return np.clip(
             np.sqrt(image_array[:, :, 0] ** 2 + image_array[:, :, 1] ** 2 + image_array[:, :, 2] ** 2) / np.sqrt(
                 3 * 255 ** 2) * 255, 0, 255)
@@ -154,12 +149,12 @@ class SPA:
         return input_width_index, input_height_index, output_width_index, output_height_index
 
     def find_waveguide_angle(self, image_array, left_index_guess, left_right_separation, number_of_points):
-        #Find the angle of the waveguide and rotate the image to ensure it is always horizontal.
-        #Define kernel for convolution
+        # Find the angle of the waveguide and rotate the image to ensure it is always horizontal.
+        # Define kernel for convolution
         kernel = np.ones([1, 50]) / (1 * 50)
         smoothed_image_array = convolve2d(image_array, kernel)
 
-        #Define the position of the waveguide
+        # Define the position of the waveguide
         x_index_array = []
         max_height_index_array = []
         for index in range(0, number_of_points):
@@ -168,7 +163,7 @@ class SPA:
             max_array = np.flip(np.mean(smoothed_image_array[:, x_index: left_index_guess + x_index + 1], axis=1))
             max_height_index = np.argmax(max_array - np.mean(max_array))
             max_height_index_array.append(max_height_index)
-        #Fit a linear function between input/output and find the angle
+        # Fit a linear function between input/output and find the angle
         param, covparam = curve_fit(self.linear_function, x_index_array, max_height_index_array)
         angle = np.degrees(np.arctan(param[0]))
 
@@ -190,41 +185,45 @@ class SPA:
 
         return image
 
-    def optimize_parameter(self,parameter,image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal):
-        #Optimizing the parameters used in the straight waveguide fit
+    def optimize_parameter(self, parameter, image, left_indent, right_indent, waveguide_sum_width,
+                           IQR_neighbor_removal):
+        # Optimizing the parameters used in the straight waveguide fit
         plot_state = self.show_plots
         if plot_state:
             self.show_plots = False
         converge_alpha = []
 
-        #Fitting for varying indents/sum widths
+        # Fitting for varying indents/sum widths
         if parameter == "left indent":
             indents = np.arange(201, 501, 2)
             for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,waveguide_sum_width, IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,
+                                                                            waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "right indent":
             indents = np.arange(150, 450, 2)
             for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent,indents[i],waveguide_sum_width,IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent, indents[i],
+                                                                            waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
             indents = np.arange(40, 200, 1)
             for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent,right_indent, indents[i],IQR_neighbor_removal)
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent, right_indent,
+                                                                            indents[i], IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         else:
             raise Exception("Specify parameter 'left indent', 'right indent' or 'sum width'")
 
-        #differentiate and smooth the determined loss values
+        # differentiate and smooth the determined loss values
         dI = indents[1] - indents[0]
         smoothed_alpha = savgol_filter(converge_alpha, 4, 1, mode="nearest")
         alpha_indent = np.gradient(smoothed_alpha, dI)
 
-        #Findng points below threshold
+        # Findng points below threshold
         index_min = []
         abs_tol = 0.01
         while abs_tol < 0.9:
@@ -240,7 +239,7 @@ class SPA:
                         index_min.append(i)
             abs_tol = abs_tol + 0.01
 
-        #Finding points where the variation in the surrounding points are ~0.
+        # Finding points where the variation in the surrounding points are ~0.
         num_neighbors = 5
         point_mean = []
         for index in index_min:
@@ -250,7 +249,7 @@ class SPA:
             point_diff = abs(point_m - smoothed_alpha[index])
             point_mean.append(point_diff)
 
-        #Finding the point where the variation in adjacent points is minimum
+        # Finding the point where the variation in adjacent points is minimum
         min_point_mean = point_mean.index(min(point_mean))
         ideal_indent = indents[index_min[min_point_mean]]
 
@@ -259,8 +258,8 @@ class SPA:
             plt.figure(figsize=(10, 6))
             plt.plot(indents, alpha_indent)
             plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
-            plt.xlabel(parameter,fontsize=20)
-            plt.ylabel("$d\\alpha$/d(indent)",fontsize=20)
+            plt.xlabel(parameter, fontsize=20)
+            plt.ylabel("$d\\alpha$/d(indent)", fontsize=20)
             plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_indent)], fontsize=16)
             plt.show()
         return ideal_indent
@@ -363,7 +362,8 @@ class SPA:
 
         separation = int((right_indent - left_indent - left_index_guess) / number_of_points)
 
-        angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(cropped_image_array[:, :, 2],left_index_guess, separation,number_of_points)
+        angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(
+            cropped_image_array[:, :, 2], left_index_guess, separation, number_of_points)
 
         # Rotate image
         left_indent = left_indent
@@ -384,8 +384,9 @@ class SPA:
         return rotated_image_array, x_mu_array, upper, lower
 
     def analyze_image(self, image, input_indent, output_indent, interval, num_neighbors):
-        #The fitting of the image
-        rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_indent,output_indent, interval)
+        # The fitting of the image
+        rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_indent, output_indent,
+                                                                             interval)
 
         cropped_image_height = np.shape(rotated_image_array)[0]
 
@@ -410,7 +411,9 @@ class SPA:
 
         initial_guess = [25, 0.0006, np.mean(fit_y[-10:])]
         bounds = ((0, 0, 0), (1000000, 1000000, 1000000))
-        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(self.exponential_function_offset,fit_x, fit_y, p0=initial_guess,full_output=True,maxfev=5000, bounds=bounds)
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(
+            self.exponential_function_offset, fit_x, fit_y, p0=initial_guess, full_output=True, maxfev=5000,
+            bounds=bounds)
 
         # fit of exponential function with offset
         fit = self.exponential_function_offset(fit_x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
@@ -439,12 +442,12 @@ class SPA:
 
         return alpha_dB, r_squared, alpha_dB_variance
 
-    def straight_waveguide(self,image,optimize_parameter):
+    def straight_waveguide(self, image, optimize_parameter):
         IQR_neighbor_removal = 1
         if optimize_parameter:
-            input_indent = self.optimize_parameter("left indent", image, 200, 100, 80,IQR_neighbor_removal)
-            output_indent = self.optimize_parameter("right indent", image, 200, 100, 80,IQR_neighbor_removal)
-            interval = self.optimize_parameter("sum width", image, 200, 100, 80,IQR_neighbor_removal)
+            input_indent = self.optimize_parameter("left indent", image, 200, 100, 80, IQR_neighbor_removal)
+            output_indent = self.optimize_parameter("right indent", image, 200, 100, 80, IQR_neighbor_removal)
+            interval = self.optimize_parameter("sum width", image, 200, 100, 80, IQR_neighbor_removal)
         else:
             input_indent = np.int32(input("Enter left indent: "))
             output_indent = np.int32(input("Enter right indent: "))
@@ -452,15 +455,16 @@ class SPA:
             IQR_neighbor_removal = np.int32(input("Enter width of removal of IQR: "))
 
         return self.analyze_image(image, input_indent, output_indent, interval, IQR_neighbor_removal)
-################################### SPIRAL #######################################
 
-    def mean_image_intensity(self,image,mum_per_pixel,in_point,out_point):
-        #Meaning the image
+    ################################### SPIRAL #######################################
+
+    def mean_image_intensity(self, image, mum_per_pixel, in_point, out_point):
+        # Meaning the image
         disk_size = 20
         mean_disk = disk(disk_size)
 
         mean_image = (rank.mean_percentile(image, footprint=mean_disk, p0=0, p1=1))
-        x_path, y_path = self.path_finder(0.1, in_point, out_point, image,mum_per_pixel)
+        x_path, y_path = self.path_finder(0.1, in_point, out_point, image, mum_per_pixel)
         y_raw = mean_image[y_path, x_path]
 
         x_image = range(len(y_raw))
@@ -469,64 +473,119 @@ class SPA:
 
         return x, y_raw
 
-    def find_path(self,bw_image, start, end):
-        #Converting the black-white image to a cost path matrix
+
+    def find_path(self, bw_image, start, end):
+        # Converting the black-white image to a cost path matrix
         costs = np.where(bw_image == 1, 1, 10000)
-        path, cost = skimage.graph.route_through_array(costs, start=start, end=end, fully_connected=True, geometric=True)
+        path, cost = skimage.graph.route_through_array(costs, start=start, end=end, fully_connected=True,
+                                                       geometric=True)
         return path, cost
 
-    def find_input_and_output(self,path):
-        #Determining the input/output facet
+    def initialize(self):
+        # Define class attributes for click-related variables
+        self.first_click = None
+        self.second_click = None
+        self.click_count = 0
+        self.window_opened = False  # Flag to track if the window is opened
+
+    def reset(self):
+        # Reset click-related variables to their initial states
+        self.first_click = None
+        self.second_click = None
+        self.click_count = 0
+
+    def get_click_coordinates(self, event, x, y):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if self.click_count == 0:
+                self.first_click = (x, y)
+                self.click_count += 1
+            elif self.click_count == 1:
+                self.second_click = (x, y)
+                self.click_count += 1
+
+            if self.click_count >= 2:
+                return (self.first_click, self.second_click)  # Return coordinates after both clicks
+
+    def run(self, image_path, scale_factor):
+        # Initialize class attributes
+        self.initialize()
+
+        # Load the image
+        image = cv2.imread(image_path)
+
+        # Resize the image based on the scale factor
+        if scale_factor != 1.0:
+            width = int(image.shape[1] * scale_factor)
+            height = int(image.shape[0] * scale_factor)
+            image = cv2.resize(image, (width, height))
+
+        # Display the image if the window is not already opened
+        if not self.window_opened:
+            cv2.imshow('Image', image)
+            self.window_opened = True
+
+        # Function to handle mouse events and store coordinates
+        def handle_mouse_event(event, x, y, flags, param):
+            self.get_click_coordinates(event, x, y)  # Call the actual method
+
+        # Set mouse callback function to handle events
+        cv2.setMouseCallback('Image', handle_mouse_event)
+
+        # Wait indefinitely for two mouse click events
+        while self.click_count < 2:
+            cv2.waitKey(1)
+
+        # Close the window after the second click event
+        cv2.destroyAllWindows()
+
+        # Process the click coordinates after both clicks
+        x1, y1 = self.first_click
+        x2, y2 = self.second_click
+
+        # Scale the coordinates based on the scale factor
+        x1_scaled = int(x1 / scale_factor)
+        y1_scaled = int(y1 / scale_factor)
+        x2_scaled = int(x2 / scale_factor)
+        y2_scaled = int(y2 / scale_factor)
+
+        # Construct input and output points
+        input_point = [x1_scaled, y1_scaled]
+        output_point = [x2_scaled, y2_scaled]
+
+        # Return the scaled coordinates of the first and second clicks
+        return input_point, output_point
+
+
+    def grey_image(self, path):
+        # Determining the input/output facet
         image = util.img_as_float(imread(path))
         grey_image = image[:, :, 2]
 
-        indent_list = [0, 0.05, 0.9, 1]
+        return grey_image
 
-        input_indent_start = int(grey_image.shape[1] * indent_list[0])
-        input_indent_end = int(grey_image.shape[1] * indent_list[1])
-
-        output_indent_start = int(grey_image.shape[1] * indent_list[2])
-        output_indent_end = int(grey_image.shape[1] * indent_list[3])
-
-        input_index = grey_image[:, input_indent_start:input_indent_end] > 0.02
-
-        cy, cx = ndi.center_of_mass(input_index)
-
-        cx = cx + input_indent_start
-
-        input_point = (int(cx), int(cy))
-
-        output_index = grey_image[:, output_indent_start:output_indent_end] > 0.02
-        cy, cx = ndi.center_of_mass(output_index)
-        cx = grey_image.shape[1] - cx
-
-        output_point = (int(cx), int(cy))
-
-        return input_point, output_point, grey_image
-
-
-    def um_per_pixel(self,point1, point2, distance):
+    def um_per_pixel(self, point1, point2, distance):
         # calculating Euclidean distance
         dist_pixels = np.linalg.norm(point1 - point2)
         return distance / dist_pixels
 
-    def opt_indent(self,parameter,x_iqr,y_iqr):
-        #Optimizing the parameters used in the fitting of the spiral waveguides
+    def opt_indent(self, parameter, x_iqr, y_iqr):
+        # Optimizing the parameters used in the fitting of the spiral waveguides
         font_size = 18
         y_savgol = savgol_filter(y_iqr, 2000, 1)
-        #Determining the alpha values for fits of varying parameters.
+        # Determining the alpha values for fits of varying parameters.
         indent = np.arange(0, 800, 20)
         dI = indent[1] - indent[0]
         alpha_dB_i = []
         if parameter == "left indent":
-            for i in range(1,len(indent)):
+            for i in range(1, len(indent)):
                 x_iqr = x_iqr[i:]
                 y_savgol = y_savgol[i:]
                 fit_x = x_iqr
                 intensity_values = y_savgol
                 initial_guess = [25, 0.0006, np.min(intensity_values)]
                 fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(
-                exponential_function_offset, fit_x, intensity_values, p0=initial_guess, full_output=True,maxfev=5000)
+                    self.exponential_function_offset, fit_x, intensity_values, p0=initial_guess, full_output=True,
+                    maxfev=5000)
                 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
                 alpha_dB_i.append(alpha_dB)
 
@@ -537,10 +596,12 @@ class SPA:
                 fit_x = x_iqr
                 intensity_values = y_savgol
                 initial_guess = [25, 0.0006, np.min(intensity_values)]
-                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset,fit_x,intensity_values,p0=initial_guess,full_output=True,maxfev=5000)
+                fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(
+                    self.exponential_function_offset, fit_x, intensity_values, p0=initial_guess, full_output=True,
+                    maxfev=5000)
                 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
                 alpha_dB_i.append(alpha_dB)
-        #For the smoothed alpha values find points where the gradient is ~0
+        # For the smoothed alpha values find points where the gradient is ~0
         smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1, mode='nearest')
         alpha_indent = np.gradient(smoothed_alpha, dI)
         index_min = []
@@ -557,7 +618,7 @@ class SPA:
                     if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
                         index_min.append(i)
             abs_tol = abs_tol + 0.01
-        #Comparing the previously found points to surrounding points and findning the minimum
+        # Comparing the previously found points to surrounding points and findning the minimum
         num_neighbors = 5
         point_mean = []
         for index in index_min:
@@ -573,28 +634,28 @@ class SPA:
             plt.plot(indent[:-1], alpha_indent, "k")
             plt.xlabel(parameter, fontsize=font_size)
             plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
-            plt.axvline(ideal_indent, color="r", linestyle="--",label="Optimized " + parameter + " " + str(ideal_indent))
-            plt.legend(["Smoothed $\\alpha$ values", "Optimal indent: " + str(ideal_indent)],fontsize=font_size)
+            plt.axvline(ideal_indent, color="r", linestyle="--",
+                        label="Optimized " + parameter + " " + str(ideal_indent))
+            plt.legend(["Smoothed $\\alpha$ values", "Optimal indent: " + str(ideal_indent)], fontsize=font_size)
             plt.show()
         return ideal_indent
 
-
-    def path_finder(self,threshold,in_point,out_point,grey_image,mum_per_pixel):
-        #Using the cost path image to find the optimal path
+    def path_finder(self, threshold, in_point, out_point, grey_image, mum_per_pixel):
+        # Using the cost path image to find the optimal path
         sobel_h = ndi.sobel(grey_image, 0)
         sobel_v = ndi.sobel(grey_image, 1)
         magnitude = np.sqrt(sobel_h ** 2 + sobel_v ** 2)
         font_size = 18
         path_length = []
         threshold = np.round(np.linspace(0.01, threshold, 10), 2)
-        #Using different threshold values to find different path lengths
+        # Using different threshold values to find different path lengths
         for i in threshold:
             bw_waveguide = grey_image > i
             start = (in_point[1], in_point[0])
             end = (out_point[1], out_point[0])
             path, costs = self.find_path(bw_waveguide, start, end)
             path_length.append(path)
-        #Finding the longest path length as it is the correct path
+        # Finding the longest path length as it is the correct path
         diff_paths = []
         path_length_mum = []
         for element in path_length:
@@ -612,11 +673,11 @@ class SPA:
             x_path.append(path_length[max_index][i][1])
             y_path.append(path_length[max_index][i][0])
 
-        plt.figure()
+        plt.figure(figsize=(8,6))
         if self.show_plots:
             plt.plot(*in_point, "ro")
             plt.plot(*out_point, "ro")
-            plt.scatter(x_path[::100], y_path[::100], s=16, alpha=1, color="red")
+            plt.scatter(x_path[::100], y_path[::100], s=32, alpha=1, color="red")
             plt.xlabel("Width [a.u.]", fontsize=font_size)
             plt.ylabel("Height [a.u.]", fontsize=font_size)
             plt.xticks(fontsize=font_size)
@@ -625,8 +686,7 @@ class SPA:
             plt.imshow(magnitude, cmap="turbo")
         return x_path, y_path
 
-
-    def spiral_fit(self,x_iqr,y_iqr,x,y_raw,l,r):
+    def spiral_fit(self, x_iqr, y_iqr, x, y_raw, l, r):
         font_size = 18
         x_iqr = x_iqr[l:-r]
         y_iqr = y_iqr[l:-r]
@@ -635,15 +695,16 @@ class SPA:
 
         fit_x = x_iqr
 
-        #Fit to outlier corrected data
+        # Fit to outlier corrected data
         initial_guess = [25, 0.0006, np.min(y_iqr)]
-        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x_iqr,
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(self.exponential_function_offset,
+                                                                                        x_iqr,
                                                                                         y_iqr, p0=initial_guess,
                                                                                         full_output=True,
                                                                                         maxfev=5000)  # sigma=weights, absolute_sigma=True
-        fit_outlier = exponential_function_offset(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+        fit_outlier = self.exponential_function_offset(x_iqr, fit_parameters[0], fit_parameters[1], fit_parameters[2])
 
-        residuals = y_iqr - exponential_function_offset(fit_x, *fit_parameters)
+        residuals = y_iqr - self.exponential_function_offset(fit_x, *fit_parameters)
         ss_res = np.sum(residuals ** 2)
         ss_tot = np.sum((y_iqr - np.mean(y_iqr)) ** 2)
         r_squared_outlier = 1 - (ss_res / ss_tot)
@@ -651,15 +712,14 @@ class SPA:
         alpha_dB_outlier = 10 * np.log10(np.exp(fit_parameters[1] * 10))
         alpha_dB_outlier_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
 
-
-        #Fit to raw data
+        # Fit to raw data
         initial_guess = [25, 0.0006, np.min(y_raw)]
-        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(exponential_function_offset, x,
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(self.exponential_function_offset, x,
                                                                                         y_raw, p0=initial_guess,
                                                                                         full_output=True,
                                                                                         maxfev=5000)  # sigma=weights, absolute_sigma=True
-        fit_raw = exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
-        residuals = y_raw - exponential_function_offset(x, *fit_parameters)
+        fit_raw = self.exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+        residuals = y_raw - self.exponential_function_offset(x, *fit_parameters)
         ss_res = np.sum(residuals ** 2)
         ss_tot = np.sum((y_raw - np.mean(y_raw)) ** 2)
         r_squared_raw = 1 - (ss_res / ss_tot)
@@ -667,15 +727,14 @@ class SPA:
         alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
         alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
         if self.show_plots:
-
-            plt.figure()
+            plt.figure(figsize=(10,6))
             plt.plot(x_iqr, fit_outlier, color="#E69F00", linestyle="-", linewidth=3,
                      label=f"Fit to outlier corrected data\n {alpha_dB_outlier:.1f}$\\pm${alpha_dB_outlier_variance:.1f} dB/cm, R\u00b2: {r_squared_outlier:.2f}")  # ,
             plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
                      label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
             plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
             plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
-            lgnd = plt.legend(fontsize=15, scatterpoints=1, frameon=False)
+            lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
             lgnd.legendHandles[2]._sizes = [30]
             lgnd.legendHandles[2].set_alpha(1)
             lgnd.legendHandles[3]._sizes = [30]
@@ -688,21 +747,21 @@ class SPA:
             plt.yticks(fontsize=font_size)
         plt.show()
 
-        return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw
+        return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw
 
-    def spiral_waveguide(self,image_directory,distance_um,parameter_optimize):
+    def spiral_waveguide(self, image_directory, distance_um, parameter_optimize,scale_factor):
         path = image_directory
-        in_point, out_point, grey_image = self.find_input_and_output(path)
+        grey_image = self.grey_image(path)
 
-        out_point = (out_point[0], out_point[1] + 210)  # (1886,1208)
-        in_point = (in_point[0], in_point[1] - 15)  # -80
-
+        in_point, out_point = self.run(image_directory, scale_factor=scale_factor)
+        print("Input coordinates: ", in_point)
+        print("Output coordinates: ", out_point)
         point1 = np.array((in_point[0], in_point[1]))
         point2 = np.array((in_point[0], out_point[1]))  # 1985
 
         mum_per_pixel = self.um_per_pixel(point1, point2, distance_um)
 
-        x, y_raw = self.mean_image_intensity(grey_image, mum_per_pixel,in_point,out_point)
+        x, y_raw = self.mean_image_intensity(grey_image, mum_per_pixel, in_point, out_point)
 
         x_iqr, y_iqr, indexes = self.remove_outliers_IQR(x, y_raw, 10, 1)
         if parameter_optimize:
@@ -712,6 +771,7 @@ class SPA:
             l = np.int32(input("Enter left indent: "))
             r = np.int32(input("Enter right indent: "))
 
-        alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw = self.spiral_fit(x_iqr, y_iqr, x, y_raw, l, r)
+        alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw = self.spiral_fit(
+            x_iqr, y_iqr, x, y_raw, l, r)
 
-        return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance,r_squared_raw
+        return alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw
