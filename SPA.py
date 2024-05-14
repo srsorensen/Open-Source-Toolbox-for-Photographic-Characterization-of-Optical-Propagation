@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Fri Sep 29 09:08:25 2023
@@ -17,8 +18,8 @@ from skimage.morphology import disk
 from skimage.filters import rank
 from skimage import util
 import scipy.ndimage as ndi
-import cv2
 import warnings
+
 
 warnings.filterwarnings('ignore')
 
@@ -262,6 +263,7 @@ class SPA:
             plt.ylabel("$d\\alpha$/d(indent)", fontsize=20)
             plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_indent)], fontsize=16)
             plt.show()
+
         return ideal_indent
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
@@ -441,6 +443,97 @@ class SPA:
             plt.show()
 
         return alpha_dB, r_squared, alpha_dB_variance
+
+    def calculate_fwhm(self,profiles, half_max_value):
+        fwhm_values = []
+        for profile in profiles:
+            # Find the maximum intensity value in the profile
+            max_intensity = np.max(profile)
+
+            # Determine the half maximum intensity value
+            half_max_intensity = max_intensity / 2
+
+            # Determine the indices where intensity equals or crosses half maximum
+            above_half_max = profile > half_max_intensity
+            half_max_indices = np.where(above_half_max)[0]
+            left_index = half_max_indices[0]
+            right_index = half_max_indices[-1]
+
+            # Interpolate to find the exact positions where intensity crosses half maximum
+            left_position = np.interp(half_max_intensity, [profile[left_index - 1], profile[left_index]],
+                                      [left_index - 1, left_index])
+            if right_index == len(profile) - 1:
+                # If the right index is the last index of the profile array, use it directly
+                right_position = right_index
+            else:
+                # Interpolate to find the exact positions where intensity crosses half maximum
+                right_position = np.interp(half_max_intensity, [profile[right_index], profile[right_index + 1]],
+                                           [right_index, right_index + 1])
+            # Calculate FWHM (distance between left and right positions)
+            fwhm = right_position - left_position
+            fwhm_values.append(fwhm)
+
+        return fwhm_values
+
+    def three_dimension_plot(self,img):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        #Load the image
+        image = imread(img, as_gray=True)
+
+        # Define the x, y, and z values
+        x_values = np.arange(220, 2170)
+        y_values = np.arange(1548, 1578)
+
+        # Crop the image
+        cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
+
+        #plt.imshow(cropped_image, cmap='gray')
+        #plt.axis('off')  # Turn off axis
+        #plt.show()
+
+        z = np.asarray(cropped_image)
+        mydata = z[::1, ::1]
+
+        fig = plt.figure(facecolor='w')
+        ax2 = fig.add_subplot(1, 1, 1, projection='3d')
+        x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
+        ax2.plot_surface(x, y, mydata, cmap=plt.cm.jet, rstride=1, cstride=1, linewidth=0., antialiased=False)
+        ax2.set_zlim3d(0, 1)
+        ax2.view_init(elev=30, azim=30)
+
+#        ax2.set_yticks([])
+        #ax2.set_xticks([0, 5, 10, 15])
+
+        plt.show()
+
+        height, width = cropped_image.shape
+
+        # Initialize a list to store profiles for each x value
+        profiles = []
+
+        # Iterate over each x value
+        for x in range(width):
+            # Extract the y, z profile at the current x value
+            yz_profile = cropped_image[:, x]  # Assuming it's a grayscale image
+            profiles.append(yz_profile)
+
+        # Convert the list of profiles into a numpy array
+        profiles = np.array(profiles)
+
+        # Define the half maximum value
+        half_max_value = 0.5  # Assuming intensity normalized to [0, 1]
+
+        # Calculate FWHM for each profile
+        fwhm_values = self.calculate_fwhm(profiles, half_max_value)
+
+        fwhm_smoothed = savgol_filter(fwhm_values, 100, 1)
+
+        # Plot FWHM versus x
+        plt.plot(range(width), fwhm_smoothed)
+        plt.xlabel('X')
+        plt.ylabel('FWHM')
+        plt.show()
 
     def straight_waveguide(self, image, optimize_parameter):
         IQR_neighbor_removal = 1
@@ -753,7 +846,9 @@ class SPA:
         path = image_directory
         grey_image = self.grey_image(path)
 
-        in_point, out_point = self.run(image_directory, scale_factor=scale_factor)
+        #in_point, out_point = self.run(image_directory, scale_factor=scale_factor)
+        in_point = (80,232)
+        out_point = (1850,1891)
         print("Input coordinates: ", in_point)
         print("Output coordinates: ", out_point)
         point1 = np.array((in_point[0], in_point[1]))
