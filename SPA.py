@@ -427,20 +427,45 @@ class SPA:
 
         alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
         alpha_dB_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
+#
+        initial_guess = [25, 0.0006, np.mean(y_raw[-10:])]
+        bounds = ((0, 0, 0), (1000000, 1000000, 1000000))
+        fit_parameters, fit_parameters_cov_var_matrix, infodict, mesg, ier, = curve_fit(
+            self.exponential_function_offset, x, y_raw, p0=initial_guess, full_output=True, maxfev=5000,
+            bounds=bounds)
+
+        # fit of exponential function with offset
+        fit_raw = self.exponential_function_offset(x, fit_parameters[0], fit_parameters[1], fit_parameters[2])
+
+        residuals = y_raw - self.exponential_function_offset(x, *fit_parameters)
+        ss_res = np.sum(residuals ** 2)
+        ss_tot = np.sum((y_raw - np.mean(y_raw)) ** 2)
+        r_squared_raw = 1 - (ss_res / ss_tot)
+
+        alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
+        alpha_dB_variance_raw = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
         if self.show_plots:
             font_size = 18
             plt.figure(figsize=(10, 6))
-            plt.scatter(fit_x, fit_y, alpha=0.2, label="Outlier corrected data", s=4, color="k")
-            plt.plot(fit_x, y_savgol, 'r-', label="Smoothed data")
-            plt.plot(fit_x, fit, 'b-',
-                     label=f"Fit to outlier corrected data: {alpha_dB:.1f} $\\pm$ {alpha_dB_variance:.1f} dB/cm")
+            plt.plot(x_iqr, fit, color="#E69F00", linestyle="-", linewidth=3,
+                     label=f"Fit to outlier corrected data\n {alpha_dB:.1f}$\\pm${alpha_dB:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
+            plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
+                     label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\\pm${alpha_dB_variance_raw:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+            plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
+            plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
             lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
-            lgnd.legendHandles[0]._sizes = [30]
-            lgnd.legendHandles[0].set_alpha(1)
-            plt.xlabel('x Length [um]')
-            plt.ylabel('Sum of pixel intensity [a.u.]')
-            plt.show()
+            lgnd.legendHandles[2]._sizes = [30]
+            lgnd.legendHandles[2].set_alpha(1)
+            lgnd.legendHandles[3]._sizes = [30]
+            lgnd.legendHandles[3].set_alpha(1)
+            plt.xlabel('Propagation length [mm]', fontsize=font_size)
+            plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
+            plt.xlim([min(x_iqr), max(x)])
+            plt.ylim([min(y_raw), max(y_raw) + 5])
+            plt.xticks(fontsize=font_size)
+            plt.yticks(fontsize=font_size)
+        plt.show()
 
         return alpha_dB, r_squared, alpha_dB_variance
 
@@ -482,8 +507,8 @@ class SPA:
         image = imread(img, as_gray=True)
 
         # Define the x, y, and z values
-        x_values = np.arange(220, 2170)
-        y_values = np.arange(1548, 1578)
+        x_values = np.arange(1, 2180)
+        y_values = np.arange(1630, 1690)
 
         # Crop the image
         cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
@@ -500,7 +525,7 @@ class SPA:
         x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
         ax2.plot_surface(x, y, mydata, cmap=plt.cm.jet, rstride=1, cstride=1, linewidth=0., antialiased=False)
         ax2.set_zlim3d(0, 1)
-        ax2.view_init(elev=30, azim=30)
+        ax2.view_init(elev=30, azim=180)#210
 
 #        ax2.set_yticks([])
         #ax2.set_xticks([0, 5, 10, 15])
@@ -527,12 +552,13 @@ class SPA:
         # Calculate FWHM for each profile
         fwhm_values = self.calculate_fwhm(profiles, half_max_value)
 
-        fwhm_smoothed = savgol_filter(fwhm_values, 100, 1)
+        fwhm_smoothed = savgol_filter(fwhm_values, 300, 1)
 
         # Plot FWHM versus x
-        plt.plot(range(width), fwhm_smoothed)
-        plt.xlabel('X')
+        plt.scatter(range(width), fwhm_smoothed)
+        plt.xlabel('Length')
         plt.ylabel('FWHM')
+#        plt.gca().invert_xaxis()
         plt.show()
 
     def straight_waveguide(self, image, optimize_parameter):
