@@ -507,8 +507,8 @@ class SPA:
         image = imread(img, as_gray=True)
 
         # Define the x, y, and z values
-        x_values = np.arange(1, 2180)
-        y_values = np.arange(1630, 1690)
+        x_values = np.arange(300, 2140)
+        y_values = np.arange(1645, 1670)
 
         # Crop the image
         cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
@@ -519,16 +519,19 @@ class SPA:
 
         z = np.asarray(cropped_image)
         mydata = z[::1, ::1]
-
+        font_size = 18
         fig = plt.figure(facecolor='w')
         ax2 = fig.add_subplot(1, 1, 1, projection='3d')
         x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
         ax2.plot_surface(x, y, mydata, cmap=plt.cm.jet, rstride=1, cstride=1, linewidth=0., antialiased=False)
         ax2.set_zlim3d(0, 1)
-        ax2.view_init(elev=30, azim=180)#210
-
+        ax2.view_init(elev=30, azim=220)#210
+        ax2.set_xlabel('Width [pixels]', fontsize=font_size)
+        ax2.set_ylabel('Length [pixels]', fontsize=font_size)
+        ax2.set_zlabel('Norm. intensity', fontsize=font_size)
 #        ax2.set_yticks([])
-        #ax2.set_xticks([0, 5, 10, 15])
+        ax2.set_yticks([2000, 1500, 1000, 500, 0])
+        ax2.set_yticklabels(ax2.get_yticks()[::-1])
 
         plt.show()
 
