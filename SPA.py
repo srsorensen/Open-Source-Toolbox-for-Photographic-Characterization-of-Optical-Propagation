@@ -507,8 +507,8 @@ class SPA:
         image = imread(img, as_gray=True)
 
         # Define the x, y, and z values
-        x_values = np.arange(300, 2140)
-        y_values = np.arange(1645, 1670)
+        x_values = np.arange(210, 2170)
+        y_values = np.arange(990, 1010)
 
         # Crop the image
         cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
@@ -525,7 +525,7 @@ class SPA:
         x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
         ax2.plot_surface(x, y, mydata, cmap=plt.cm.jet, rstride=1, cstride=1, linewidth=0., antialiased=False)
         ax2.set_zlim3d(0, 1)
-        ax2.view_init(elev=30, azim=220)#210
+        ax2.view_init(elev=30, azim=230)#210
         ax2.set_xlabel('Width [pixels]', fontsize=font_size)
         ax2.set_ylabel('Length [pixels]', fontsize=font_size)
         ax2.set_zlabel('Norm. intensity', fontsize=font_size)
