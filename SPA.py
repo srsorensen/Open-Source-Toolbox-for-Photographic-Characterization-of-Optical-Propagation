@@ -19,6 +19,8 @@ from skimage.filters import rank
 from skimage import util
 import scipy.ndimage as ndi
 import warnings
+import matplotlib.patches as patches
+from skimage.color import rgb2gray
 
 
 warnings.filterwarnings('ignore')
@@ -332,8 +334,7 @@ class SPA:
             input_height_index = self.input_height_index
             output_width_index = self.output_width_index
         else:
-            input_width_index, input_height_index, output_width_index, output_height_index = self.insertion_detection(
-                image.copy())
+            input_width_index, input_height_index, output_width_index, output_height_index = self.insertion_detection(image.copy())
 
             input_point = (input_width_index, input_height_index)
             output_point = (output_width_index, output_height_index)
@@ -500,22 +501,43 @@ class SPA:
 
         return fwhm_values
 
-    def three_dimension_plot(self,img):
-        from mpl_toolkits.mplot3d import Axes3D
+    def three_dimension_plot(self,img,manual):
 
-        #Load the image
-        image = imread(img, as_gray=True)
+        #Change image to grayscale
+        image_np = np.array(img)
 
+        # Step 3: Convert the image to grayscale using scikit-image
+        image_gray = rgb2gray(image_np)
+
+        #insertion detection to find the input/output coordinates
+
+        if manual == True:
+            x_start = np.int32(input("Enter start x coordinate: "))
+            x_end = np.int32(input("Enter final x coordinate: "))
+            y_start = np.int32(input("Enter start y coordinate: "))
+            y_end = np.int32(input("Enter final x coordinate: "))
+        else:
+            x_start, y_start, x_end, y_end = self.insertion_detection(image.copy())
+        print(x_start,y_start,x_end,y_end)
         # Define the x, y, and z values
-        x_values = np.arange(210, 2170)
-        y_values = np.arange(990, 1010)
+        x_values = np.arange(x_start, x_end)
+        y_values = np.arange(y_start, y_end)
 
         # Crop the image
         cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
 
-        #plt.imshow(cropped_image, cmap='gray')
-        #plt.axis('off')  # Turn off axis
-        #plt.show()
+        fig, ax = plt.subplots()
+        ax.imshow(image, cmap='gray')
+
+        # Create a rectangle patch
+        rect = patches.Rectangle((x_values[0], y_values[0]), x_values[-1] - x_values[0], y_values[-1] - y_values[0],
+                                 linewidth=2, edgecolor='r', facecolor='none')
+
+        # Add the rectangle to the plot
+        ax.add_patch(rect)
+
+        # Display the plot
+        plt.show()
 
         z = np.asarray(cropped_image)
         mydata = z[::1, ::1]
@@ -533,35 +555,6 @@ class SPA:
         ax2.set_yticks([2000, 1500, 1000, 500, 0])
         ax2.set_yticklabels(ax2.get_yticks()[::-1])
 
-        plt.show()
-
-        height, width = cropped_image.shape
-
-        # Initialize a list to store profiles for each x value
-        profiles = []
-
-        # Iterate over each x value
-        for x in range(width):
-            # Extract the y, z profile at the current x value
-            yz_profile = cropped_image[:, x]  # Assuming it's a grayscale image
-            profiles.append(yz_profile)
-
-        # Convert the list of profiles into a numpy array
-        profiles = np.array(profiles)
-
-        # Define the half maximum value
-        half_max_value = 0.5  # Assuming intensity normalized to [0, 1]
-
-        # Calculate FWHM for each profile
-        fwhm_values = self.calculate_fwhm(profiles, half_max_value)
-
-        fwhm_smoothed = savgol_filter(fwhm_values, 300, 1)
-
-        # Plot FWHM versus x
-        plt.scatter(range(width), fwhm_smoothed)
-        plt.xlabel('Length')
-        plt.ylabel('FWHM')
-#        plt.gca().invert_xaxis()
         plt.show()
 
     def straight_waveguide(self, image, optimize_parameter):
