@@ -19,9 +19,9 @@ from skimage.filters import rank
 from skimage import util
 import scipy.ndimage as ndi
 import warnings
-import matplotlib.patches as patches
 from skimage.color import rgb2gray
-
+import matplotlib.patches as patches
+import cv2
 
 warnings.filterwarnings('ignore')
 
@@ -188,7 +188,7 @@ class SPA:
 
         return image
 
-    def optimize_parameter(self, parameter, image, left_indent, right_indent, waveguide_sum_width,
+    def optimize_parameter(self, parameter, image, left_crop, right_crop, waveguide_sum_width,
                            IQR_neighbor_removal):
         # Optimizing the parameters used in the straight waveguide fit
         plot_state = self.show_plots
@@ -196,35 +196,35 @@ class SPA:
             self.show_plots = False
         converge_alpha = []
 
-        # Fitting for varying indents/sum widths
-        if parameter == "left indent":
-            indents = np.arange(201, 501, 2)
-            for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, indents[i], right_indent,
+        # Fitting for varying left/right crop and sum widths
+        if parameter == "left crop":
+            crop = np.arange(201, 501, 2)
+            for i in range(len(crop)):
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, crop[i], right_crop,
                                                                             waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
-        elif parameter == "right indent":
-            indents = np.arange(150, 450, 2)
-            for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent, indents[i],
+        elif parameter == "right crop":
+            crop = np.arange(150, 450, 2)
+            for i in range(len(crop)):
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, crop[i],
                                                                             waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
-            indents = np.arange(40, 200, 1)
-            for i in range(len(indents)):
-                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_indent, right_indent,
-                                                                            indents[i], IQR_neighbor_removal)
+            crop = np.arange(40, 200, 1)
+            for i in range(len(crop)):
+                alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, right_crop,
+                                                                            crop[i], IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         else:
-            raise Exception("Specify parameter 'left indent', 'right indent' or 'sum width'")
+            raise Exception("Specify parameter 'left crop', 'right crop' or 'sum width'")
 
         # differentiate and smooth the determined loss values
-        dI = indents[1] - indents[0]
+        dI = crop[1] - crop[0]
         smoothed_alpha = savgol_filter(converge_alpha, 4, 1, mode="nearest")
-        alpha_indent = np.gradient(smoothed_alpha, dI)
+        alpha_crop = np.gradient(smoothed_alpha, dI)
 
         # Findng points below threshold
         index_min = []
@@ -233,9 +233,9 @@ class SPA:
             if len(index_min) == 0:
                 zero_gradient_minus = []
                 zero_gradient_plus = []
-                for i in range(len(indents) - 1):
-                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                for i in range(len(crop) - 1):
+                    zero_gradient_p = isclose(alpha_crop[i], alpha_crop[i + 1], abs_tol=abs_tol)
+                    zero_gradient_m = isclose(alpha_crop[i], alpha_crop[i - 1], abs_tol=abs_tol)
                     zero_gradient_minus.append(zero_gradient_m)
                     zero_gradient_plus.append(zero_gradient_p)
                     if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
@@ -247,26 +247,26 @@ class SPA:
         point_mean = []
         for index in index_min:
             neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
+            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_crop)]
             point_m = np.mean(smoothed_alpha[neighbor_indexes])
             point_diff = abs(point_m - smoothed_alpha[index])
             point_mean.append(point_diff)
 
         # Finding the point where the variation in adjacent points is minimum
         min_point_mean = point_mean.index(min(point_mean))
-        ideal_indent = indents[index_min[min_point_mean]]
+        ideal_crop = crop[index_min[min_point_mean]]
 
         self.show_plots = plot_state
         if self.show_plots:
             plt.figure(figsize=(10, 6))
-            plt.plot(indents, alpha_indent)
-            plt.axvline(ideal_indent, color='r', linestyle="dashed", label="minimum_index")
+            plt.plot(crop, alpha_crop)
+            plt.axvline(ideal_crop, color='r', linestyle="dashed", label="minimum_index")
             plt.xlabel(parameter, fontsize=20)
-            plt.ylabel("$d\\alpha$/d(indent)", fontsize=20)
-            plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_indent)], fontsize=16)
+            plt.ylabel("$d\\alpha$/d(crop)", fontsize=20)
+            plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_crop)], fontsize=16)
             plt.show()
 
-        return ideal_indent
+        return ideal_crop
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
         # Removal of outliers using the interquartile method.
@@ -325,7 +325,7 @@ class SPA:
 
         return fit_upper, fit_lower, upper_b, lower_b
 
-    def crop_and_rotate(self, image, input_indent, output_indent, interval):
+    def crop_and_rotate(self, image, input_crop, output_crop, interval):
         # Crop and rotating of image to exclude input/output facet.
         image_array = np.asarray(image)
 
@@ -334,7 +334,8 @@ class SPA:
             input_height_index = self.input_height_index
             output_width_index = self.output_width_index
         else:
-            input_width_index, input_height_index, output_width_index, output_height_index = self.insertion_detection(image.copy())
+            input_width_index, input_height_index, output_width_index, output_height_index = self.insertion_detection(
+                image.copy())
 
             input_point = (input_width_index, input_height_index)
             output_point = (output_width_index, output_height_index)
@@ -343,19 +344,19 @@ class SPA:
         window_num_pixel_height = np.shape(image_array)[1]  # 2048
 
         # Cropping of image
-        left_indent = input_width_index + input_indent
-        right_indent = output_width_index - output_indent
-        top_indent = input_height_index - (window_num_pixel_height / 20)
+        left_crop = input_width_index + input_crop
+        right_crop = output_width_index - output_crop
+        top_crop = input_height_index - (window_num_pixel_height / 20)
 
-        if top_indent < 0:
-            top_indent = 0
+        if top_crop < 0:
+            top_crop = 0
 
-        bottom_indent = input_height_index + (window_num_pixel_height / 20)
+        bottom_crop = input_height_index + (window_num_pixel_height / 20)
 
-        if bottom_indent > window_num_pixel_height:
-            bottom_indent = window_num_pixel_height
+        if bottom_crop > window_num_pixel_height:
+            bottom_crop = window_num_pixel_height
 
-        cropped_image = image.crop((left_indent, top_indent, right_indent, bottom_indent))
+        cropped_image = image.crop((left_crop, top_crop, right_crop, bottom_crop))
         cropped_image_array = np.asarray(cropped_image)
 
         # Find the waveguide and calculate angle of waveguide
@@ -363,18 +364,18 @@ class SPA:
 
         number_of_points = 15
 
-        separation = int((right_indent - left_indent - left_index_guess) / number_of_points)
+        separation = int((right_crop - left_crop - left_index_guess) / number_of_points)
 
         angle, angle_params, x_max_index_array, y_max_index_array = self.find_waveguide_angle(
             cropped_image_array[:, :, 2], left_index_guess, separation, number_of_points)
 
         # Rotate image
-        left_indent = left_indent
-        right_indent = right_indent
-        top_indent = top_indent
-        bottom_indent = bottom_indent
-        rotated_image = image.rotate(-angle, center=(left_indent, int(angle_params[1]) + top_indent)).crop(
-            (left_indent, top_indent, right_indent, bottom_indent))
+        left_crop = left_crop
+        right_crop = right_crop
+        top_crop = top_crop
+        bottom_crop = bottom_crop
+        rotated_image = image.rotate(-angle, center=(left_crop, int(angle_params[1]) + top_crop)).crop(
+            (left_crop, top_crop, right_crop, bottom_crop))
 
         rotated_image_array = np.asarray(rotated_image)
 
@@ -386,9 +387,9 @@ class SPA:
 
         return rotated_image_array, x_mu_array, upper, lower
 
-    def analyze_image(self, image, input_indent, output_indent, interval, num_neighbors):
+    def analyze_image(self, image, input_crop, output_crop, interval, num_neighbors):
         # The fitting of the image
-        rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_indent, output_indent,
+        rotated_image_array, x_mu_array, upper, lower = self.crop_and_rotate(image, input_crop, output_crop,
                                                                              interval)
 
         cropped_image_height = np.shape(rotated_image_array)[0]
@@ -447,15 +448,15 @@ class SPA:
         alpha_dB_variance_raw = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
         if self.show_plots:
-            font_size = 18
-            plt.figure(figsize=(10, 6))
+            font_size = 35
+            plt.figure(figsize=(9, 6))
             plt.plot(x_iqr, fit, color="#E69F00", linestyle="-", linewidth=3,
-                     label=f"Fit to outlier corrected data\n {alpha_dB:.1f}$\\pm${alpha_dB:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
+                     label=f"{alpha_dB:.1f}$\\pm${alpha_dB_variance:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
             plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
-                     label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\\pm${alpha_dB_variance_raw:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-            plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
-            plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
-            lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
+                     label=f"{alpha_dB_raw:.1f}$\\pm${alpha_dB_variance_raw:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+            plt.scatter(x, y_raw, color="#0072B2", s=3, label="Raw data")
+            plt.scatter(x_iqr, y_iqr, color="#000000", s=3, label="Outlier corrected data")
+            lgnd = plt.legend(fontsize=24, scatterpoints=1, frameon=False)
             lgnd.legendHandles[2]._sizes = [30]
             lgnd.legendHandles[2].set_alpha(1)
             lgnd.legendHandles[3]._sizes = [30]
@@ -464,112 +465,89 @@ class SPA:
             plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
             plt.xlim([min(x_iqr), max(x)])
             plt.ylim([min(y_raw), max(y_raw) + 5])
-            plt.xticks(fontsize=font_size)
-            plt.yticks(fontsize=font_size)
+            plt.xticks([0, 1000, 2000, 3000],fontsize=font_size)
+            plt.yticks([1000,3000,5000,7000],fontsize=font_size)
+            plt.subplots_adjust(left=0.23, right=0.99, top=0.95, bottom=0.2)
         plt.show()
 
         return alpha_dB, r_squared, alpha_dB_variance
 
-    def calculate_fwhm(self,profiles, half_max_value):
-        fwhm_values = []
-        for profile in profiles:
-            # Find the maximum intensity value in the profile
-            max_intensity = np.max(profile)
+    def three_dimension_plot(self,img,manual,x_offset,y_offset):
+        #Convert the image to np.array and then to grayscale for intensity to be normalized.
+        image_array = np.array(img)
 
-            # Determine the half maximum intensity value
-            half_max_intensity = max_intensity / 2
-
-            # Determine the indices where intensity equals or crosses half maximum
-            above_half_max = profile > half_max_intensity
-            half_max_indices = np.where(above_half_max)[0]
-            left_index = half_max_indices[0]
-            right_index = half_max_indices[-1]
-
-            # Interpolate to find the exact positions where intensity crosses half maximum
-            left_position = np.interp(half_max_intensity, [profile[left_index - 1], profile[left_index]],
-                                      [left_index - 1, left_index])
-            if right_index == len(profile) - 1:
-                # If the right index is the last index of the profile array, use it directly
-                right_position = right_index
-            else:
-                # Interpolate to find the exact positions where intensity crosses half maximum
-                right_position = np.interp(half_max_intensity, [profile[right_index], profile[right_index + 1]],
-                                           [right_index, right_index + 1])
-            # Calculate FWHM (distance between left and right positions)
-            fwhm = right_position - left_position
-            fwhm_values.append(fwhm)
-
-        return fwhm_values
-
-    def three_dimension_plot(self,img,manual):
-
-        #Change image to grayscale
-        image_np = np.array(img)
-
-        # Step 3: Convert the image to grayscale using scikit-image
-        image_gray = rgb2gray(image_np)
-
-        #insertion detection to find the input/output coordinates
-
+        image = rgb2gray(image_array)
+        #Input / ouput can be manually input or automatically detected.
         if manual == True:
-            x_start = np.int32(input("Enter start x coordinate: "))
-            x_end = np.int32(input("Enter final x coordinate: "))
-            y_start = np.int32(input("Enter start y coordinate: "))
-            y_end = np.int32(input("Enter final x coordinate: "))
+            x_start = np.int32(input("Enter first x: "))
+            y_start = np.int32(input("Enter first y: "))
+            x_end = np.int32(input("Enter last x: "))
+            y_end = np.int32(input("Enter last y: "))
         else:
-            x_start, y_start, x_end, y_end = self.insertion_detection(image.copy())
-        print(x_start,y_start,x_end,y_end)
-        # Define the x, y, and z values
-        x_values = np.arange(x_start, x_end)
-        y_values = np.arange(y_start, y_end)
+            x_start, y_start, x_end, y_end = self.insertion_detection(img.copy())
+
+        #The input and output are printed
+        in_point = [x_start,y_start]
+        out_point = [x_end,y_end]
+        print("Input coordinates: ", in_point)
+        print("Output coordinates: ", out_point)
+
+        # Define the cropped image and allows for x and y offset as the input will include facet scattering.
+        x_values = np.arange(x_start + x_offset, x_end - x_offset)
+        y_values = np.arange(min(y_start, y_end) - y_offset, max(y_start, y_end) - y_offset)
 
         # Crop the image
         cropped_image = image[y_values[0]:y_values[-1], x_values[0]:x_values[-1]]
 
+        #Plot the full image with a rectangle patch indicating the cropped region
         fig, ax = plt.subplots()
         ax.imshow(image, cmap='gray')
-
+        #Show input and output
+        plt.scatter(*in_point, color='red', marker='o', label='In Point')
+        plt.scatter(*out_point, color='blue', marker='o', label='Out Point')
         # Create a rectangle patch
         rect = patches.Rectangle((x_values[0], y_values[0]), x_values[-1] - x_values[0], y_values[-1] - y_values[0],
                                  linewidth=2, edgecolor='r', facecolor='none')
 
         # Add the rectangle to the plot
         ax.add_patch(rect)
-
-        # Display the plot
+        plt.legend()
         plt.show()
 
+        #Construct the 3D plot
         z = np.asarray(cropped_image)
         mydata = z[::1, ::1]
-        font_size = 18
+        font_size = 27
+        label_pad = 18
         fig = plt.figure(facecolor='w')
         ax2 = fig.add_subplot(1, 1, 1, projection='3d')
         x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
-        ax2.plot_surface(x, y, mydata, cmap=plt.cm.jet, rstride=1, cstride=1, linewidth=0., antialiased=False)
+        ax2.plot_surface(x, y, mydata, cmap=plt.cm.turbo, rstride=1, cstride=1, linewidth=0., antialiased=False)
         ax2.set_zlim3d(0, 1)
-        ax2.view_init(elev=30, azim=230)#210
-        ax2.set_xlabel('Width [pixels]', fontsize=font_size)
-        ax2.set_ylabel('Length [pixels]', fontsize=font_size)
-        ax2.set_zlabel('Norm. intensity', fontsize=font_size)
-#        ax2.set_yticks([])
-        ax2.set_yticks([2000, 1500, 1000, 500, 0])
-        ax2.set_yticklabels(ax2.get_yticks()[::-1])
-
+        #Rotate the plot
+        ax2.view_init(elev=30, azim=45)#210
+        ax2.set_xlabel('Width [pixels]', fontsize=font_size, labelpad = label_pad)
+        ax2.set_ylabel('Length [pixels]', fontsize=font_size, labelpad = label_pad)
+        ax2.set_zlabel('Norm. intensity', fontsize=font_size, labelpad = label_pad)
+        ax2.set_yticks([0, 1000])
+        ax2.tick_params(axis='both', which='major', labelsize=font_size)  # Adjust labelsize as needed
+        ax2.tick_params(axis='z', which='major', labelsize=font_size, pad = 5)  # Adjust z-axis labelsize as needed
+        plt.subplots_adjust(left=0.05, right=0.98, top=0.98, bottom=0.18)
         plt.show()
 
     def straight_waveguide(self, image, optimize_parameter):
         IQR_neighbor_removal = 1
         if optimize_parameter:
-            input_indent = self.optimize_parameter("left indent", image, 200, 100, 80, IQR_neighbor_removal)
-            output_indent = self.optimize_parameter("right indent", image, 200, 100, 80, IQR_neighbor_removal)
+            input_crop = self.optimize_parameter("left crop", image, 200, 100, 80, IQR_neighbor_removal)
+            output_crop = self.optimize_parameter("right crop", image, 200, 100, 80, IQR_neighbor_removal)
             interval = self.optimize_parameter("sum width", image, 200, 100, 80, IQR_neighbor_removal)
         else:
-            input_indent = np.int32(input("Enter left indent: "))
-            output_indent = np.int32(input("Enter right indent: "))
+            input_crop = np.int32(input("Enter left crop: "))
+            output_crop = np.int32(input("Enter right crop: "))
             interval = np.int32(input("Enter sum width: "))
             IQR_neighbor_removal = np.int32(input("Enter width of removal of IQR: "))
 
-        return self.analyze_image(image, input_indent, output_indent, interval, IQR_neighbor_removal)
+        return self.analyze_image(image, input_crop, output_crop, interval, IQR_neighbor_removal)
 
     ################################### SPIRAL #######################################
 
@@ -683,16 +661,16 @@ class SPA:
         dist_pixels = np.linalg.norm(point1 - point2)
         return distance / dist_pixels
 
-    def opt_indent(self, parameter, x_iqr, y_iqr):
+    def opt_crop(self, parameter, x_iqr, y_iqr):
         # Optimizing the parameters used in the fitting of the spiral waveguides
         font_size = 18
         y_savgol = savgol_filter(y_iqr, 2000, 1)
         # Determining the alpha values for fits of varying parameters.
-        indent = np.arange(0, 800, 20)
-        dI = indent[1] - indent[0]
+        crop = np.arange(0, 800, 20)
+        dI = crop[1] - crop[0]
         alpha_dB_i = []
-        if parameter == "left indent":
-            for i in range(1, len(indent)):
+        if parameter == "left crop":
+            for i in range(1, len(crop)):
                 x_iqr = x_iqr[i:]
                 y_savgol = y_savgol[i:]
                 fit_x = x_iqr
@@ -704,8 +682,8 @@ class SPA:
                 alpha_dB = 10 * np.log10(np.exp(fit_parameters[1] * 10))
                 alpha_dB_i.append(alpha_dB)
 
-        elif parameter == "right indent":
-            for i in range(1, len(indent)):  # 525
+        elif parameter == "right crop":
+            for i in range(1, len(crop)):  # 525
                 x_iqr = x_iqr[:-i]
                 y_savgol = y_savgol[:-i]
                 fit_x = x_iqr
@@ -718,16 +696,16 @@ class SPA:
                 alpha_dB_i.append(alpha_dB)
         # For the smoothed alpha values find points where the gradient is ~0
         smoothed_alpha = savgol_filter(alpha_dB_i, 4, 1, mode='nearest')
-        alpha_indent = np.gradient(smoothed_alpha, dI)
+        alpha_crop = np.gradient(smoothed_alpha, dI)
         index_min = []
         abs_tol = 0.01
         while abs_tol < 0.9:
             if len(index_min) == 0:
                 zero_gradient_minus = []
                 zero_gradient_plus = []
-                for i in range(len(alpha_indent) - 1):
-                    zero_gradient_p = isclose(alpha_indent[i], alpha_indent[i + 1], abs_tol=abs_tol)
-                    zero_gradient_m = isclose(alpha_indent[i], alpha_indent[i - 1], abs_tol=abs_tol)
+                for i in range(len(alpha_crop) - 1):
+                    zero_gradient_p = isclose(alpha_crop[i], alpha_crop[i + 1], abs_tol=abs_tol)
+                    zero_gradient_m = isclose(alpha_crop[i], alpha_crop[i - 1], abs_tol=abs_tol)
                     zero_gradient_minus.append(zero_gradient_m)
                     zero_gradient_plus.append(zero_gradient_p)
                     if zero_gradient_plus[i] == True and zero_gradient_minus[i] == True:
@@ -738,22 +716,22 @@ class SPA:
         point_mean = []
         for index in index_min:
             neighbor_indexes = np.arange(index - num_neighbors, index + num_neighbors + 1, 1)
-            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_indent)]
+            neighbor_indexes = [x for x in neighbor_indexes if x > 0 and x < len(alpha_crop)]
             point_m = np.mean(smoothed_alpha[neighbor_indexes])
             point_diff = abs(point_m - smoothed_alpha[index])
             point_mean.append(point_diff)
         min_point_mean = point_mean.index(min(point_mean))
-        ideal_indent = indent[index_min[min_point_mean]]
+        ideal_crop = crop[index_min[min_point_mean]]
         if self.show_plots:
             plt.figure(figsize=(10, 6))
-            plt.plot(indent[:-1], alpha_indent, "k")
+            plt.plot(crop[:-1], alpha_crop, "k")
             plt.xlabel(parameter, fontsize=font_size)
-            plt.ylabel("d$d\\alpha$/d(indent)", fontsize=font_size)
-            plt.axvline(ideal_indent, color="r", linestyle="--",
-                        label="Optimized " + parameter + " " + str(ideal_indent))
-            plt.legend(["Smoothed $\\alpha$ values", "Optimal indent: " + str(ideal_indent)], fontsize=font_size)
+            plt.ylabel("$d\\alpha$/d(crop)", fontsize=font_size)
+            plt.axvline(ideal_crop, color="r", linestyle="--",
+                        label="Optimized " + parameter + " " + str(ideal_crop))
+            plt.legend(["Smoothed $\\alpha$ values", "Optimal crop: " + str(ideal_crop)], fontsize=font_size)
             plt.show()
-        return ideal_indent
+        return ideal_crop
 
     def path_finder(self, threshold, in_point, out_point, grey_image, mum_per_pixel):
         # Using the cost path image to find the optimal path
@@ -842,13 +820,13 @@ class SPA:
         alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 10))
         alpha_dB_raw_variance = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 10))
         if self.show_plots:
-            plt.figure(figsize=(10,6))
+            plt.figure(figsize=(9,6))
             plt.plot(x_iqr, fit_outlier, color="#E69F00", linestyle="-", linewidth=3,
-                     label=f"Fit to outlier corrected data\n {alpha_dB_outlier:.1f}$\\pm${alpha_dB_outlier_variance:.1f} dB/cm, R\u00b2: {r_squared_outlier:.2f}")  # ,
+                     label=f"{alpha_dB_outlier:.1f}$\\pm${alpha_dB_outlier_variance:.1f} dB/cm, R\u00b2: {r_squared_outlier:.2f}")  # ,
             plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
-                     label=f"Fit to raw data\n {alpha_dB_raw:.1f}$\\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-            plt.scatter(x, y_raw, color="#0072B2", s=1.5, label="Raw data")
-            plt.scatter(x_iqr, y_iqr, color="#000000", s=1.5, label="Outlier corrected data")
+                     label=f"{alpha_dB_raw:.1f}$\\pm${alpha_dB_raw_variance:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
+            plt.scatter(x, y_raw, color="#0072B2", s=3, label="Raw data")
+            plt.scatter(x_iqr, y_iqr, color="#000000", s=3, label="Outlier corrected data")
             lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
             lgnd.legendHandles[2]._sizes = [30]
             lgnd.legendHandles[2].set_alpha(1)
@@ -868,9 +846,7 @@ class SPA:
         path = image_directory
         grey_image = self.grey_image(path)
 
-        #in_point, out_point = self.run(image_directory, scale_factor=scale_factor)
-        in_point = (80,232)
-        out_point = (1850,1891)
+        in_point, out_point = self.run(image_directory, scale_factor=scale_factor)
         print("Input coordinates: ", in_point)
         print("Output coordinates: ", out_point)
         point1 = np.array((in_point[0], in_point[1]))
@@ -882,11 +858,11 @@ class SPA:
 
         x_iqr, y_iqr, indexes = self.remove_outliers_IQR(x, y_raw, 10, 1)
         if parameter_optimize:
-            l = self.opt_indent("left indent", x_iqr, y_iqr)
-            r = self.opt_indent("right indent", x_iqr, y_iqr)
+            l = self.opt_crop("left crop", x_iqr, y_iqr)
+            r = self.opt_crop("right crop", x_iqr, y_iqr)
         else:
-            l = np.int32(input("Enter left indent: "))
-            r = np.int32(input("Enter right indent: "))
+            l = np.int32(input("Enter left crop: "))
+            r = np.int32(input("Enter right crop: "))
 
         alpha_dB_outlier, alpha_dB_outlier_variance, r_squared_outlier, alpha_dB_raw, alpha_dB_raw_variance, r_squared_raw = self.spiral_fit(
             x_iqr, y_iqr, x, y_raw, l, r)
