@@ -447,27 +447,31 @@ class SPA:
         alpha_dB_raw = 10 * np.log10(np.exp(fit_parameters[1] * 1e4))
         alpha_dB_variance_raw = 10 * np.log10(np.exp(np.sqrt(fit_parameters_cov_var_matrix[1, 1]) * 1e4))
 
+        x_iqr = x_iqr / 1000
+        x = x/1000
+
         if self.show_plots:
-            font_size = 35
-            plt.figure(figsize=(9, 6))
+            font_size = 24
+            plt.figure(figsize=(9.5, 6.5))
             plt.plot(x_iqr, fit, color="#E69F00", linestyle="-", linewidth=3,
                      label=f"{alpha_dB:.1f}$\\pm${alpha_dB_variance:.1f} dB/cm, R\u00b2: {r_squared:.2f}")  # ,
             plt.plot(x, fit_raw, color="g", linestyle="-", linewidth=3,
                      label=f"{alpha_dB_raw:.1f}$\\pm${alpha_dB_variance_raw:.1f} dB/cm, R\u00b2: {r_squared_raw:.2f}")  # ,
-            plt.scatter(x, y_raw, color="#0072B2", s=3, label="Raw data")
-            plt.scatter(x_iqr, y_iqr, color="#000000", s=3, label="Outlier corrected data")
-            lgnd = plt.legend(fontsize=24, scatterpoints=1, frameon=False)
-            lgnd.legendHandles[2]._sizes = [30]
-            lgnd.legendHandles[2].set_alpha(1)
-            lgnd.legendHandles[3]._sizes = [30]
-            lgnd.legendHandles[3].set_alpha(1)
+            plt.scatter(x, y_raw, color="#0072B2", s=3)#, label="Raw data")
+            plt.scatter(x_iqr, y_iqr, color="#000000", s=3)#, label="Outlier corrected data")
+
+            lgnd = plt.legend(fontsize=font_size, scatterpoints=1, frameon=False)
+#            lgnd.legendHandles[2]._sizes = [30]
+#            lgnd.legendHandles[2].set_alpha(1)
+#            lgnd.legendHandles[3]._sizes = [30]
+#            lgnd.legendHandles[3].set_alpha(1)
             plt.xlabel('Propagation length [mm]', fontsize=font_size)
             plt.ylabel('Mean intensity [a.u.]', fontsize=font_size)
             plt.xlim([min(x_iqr), max(x)])
             plt.ylim([min(y_raw), max(y_raw) + 5])
-            plt.xticks([0, 1000, 2000, 3000],fontsize=font_size)
+            plt.xticks([1,2,3],fontsize=font_size)
             plt.yticks([1000,3000,5000,7000],fontsize=font_size)
-            plt.subplots_adjust(left=0.23, right=0.99, top=0.95, bottom=0.2)
+            plt.subplots_adjust(left=0.15, right=0.95, top=0.95, bottom=0.15)
         plt.show()
 
         return alpha_dB, r_squared, alpha_dB_variance
@@ -512,27 +516,31 @@ class SPA:
         # Add the rectangle to the plot
         ax.add_patch(rect)
         plt.legend()
-        plt.show()
+        #plt.show()
 
         #Construct the 3D plot
-        z = np.asarray(cropped_image)
+        z = np.asarray(cropped_image)*255
         mydata = z[::1, ::1]
-        font_size = 27
-        label_pad = 18
+        font_size = 16
+        label_pad = 10
         fig = plt.figure(facecolor='w')
         ax2 = fig.add_subplot(1, 1, 1, projection='3d')
         x, y = np.mgrid[:mydata.shape[0], :mydata.shape[1]]
         ax2.plot_surface(x, y, mydata, cmap=plt.cm.turbo, rstride=1, cstride=1, linewidth=0., antialiased=False)
-        ax2.set_zlim3d(0, 1)
+        ax2.set_zlim3d(0, 255)
         #Rotate the plot
-        ax2.view_init(elev=30, azim=45)#210
+        ax2.view_init(elev=30, azim=25)#210
         ax2.set_xlabel('Width [pixels]', fontsize=font_size, labelpad = label_pad)
         ax2.set_ylabel('Length [pixels]', fontsize=font_size, labelpad = label_pad)
         ax2.set_zlabel('Norm. intensity', fontsize=font_size, labelpad = label_pad)
-        ax2.set_yticks([0, 1000])
+
+        ax2.set_yticks([0, 500, 1000])
+        ax2.set_zticks([0,128,255])
         ax2.tick_params(axis='both', which='major', labelsize=font_size)  # Adjust labelsize as needed
         ax2.tick_params(axis='z', which='major', labelsize=font_size, pad = 5)  # Adjust z-axis labelsize as needed
-        plt.subplots_adjust(left=0.05, right=0.98, top=0.98, bottom=0.18)
+
+        ax2.set_box_aspect([1, 2, 1.5])  # Aspect ratio is width:length:height
+
         plt.show()
 
     def straight_waveguide(self, image, optimize_parameter):
