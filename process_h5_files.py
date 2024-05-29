@@ -207,7 +207,7 @@ if not te_dataframe.empty:
     plt.plot(te_mean.index, te_mean - te_std,linestyle="-", color=c1, alpha=0.3)
 
     plt.xlabel("Wavelength (nm)",fontsize = plot_fontsize)
-    plt.ylabel("Alpha (dB/cm)",fontsize = plot_fontsize)
+    plt.ylabel("Propagation loss (dB/cm)",fontsize = plot_fontsize)
     plt.legend(fontsize=plot_fontsize)
     plt.xlim(910,980)
     plt.ylim(0,75)
@@ -222,7 +222,7 @@ if not tm_dataframe.empty:
     plt.plot(tm_mean.index, tm_mean - tm_std, linestyle="-", color=c1, alpha=0.2)
 
     plt.xlabel("Wavelength (nm)",fontsize=plot_fontsize)
-    plt.ylabel("Alpha (dB/cm)",fontsize=plot_fontsize)
+    plt.ylabel("Propagation loss (dB/cm)",fontsize=plot_fontsize)
 
     plt.legend(fontsize=plot_fontsize)
     plt.xticks(fontsize=plot_fontsize)
