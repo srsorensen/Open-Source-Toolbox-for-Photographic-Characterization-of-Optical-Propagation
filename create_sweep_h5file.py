@@ -14,7 +14,7 @@ import numpy as np
 def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
-path = 'F:/GaAs/'
+path = 'D:/Top_Down_Method/Article_Data/GaAs/'
 f_ending = '.bmp'
 contains = 'GST3'
 
@@ -69,18 +69,19 @@ for key in image_path_dict.keys():
             continue
 
         try:
-            left_indent_opt = spa.optimize_parameter("left indent",image,left_indent,right_indent,sum_width,IQR_neighbor_removal)
-            right_indent_opt = spa.optimize_parameter("right indent",image,left_indent,right_indent,sum_width,IQR_neighbor_removal)
+            left_indent_opt = spa.optimize_parameter("left crop",image,left_indent,right_indent,sum_width,IQR_neighbor_removal)
+            right_indent_opt = spa.optimize_parameter("right crop",image,left_indent,right_indent,sum_width,IQR_neighbor_removal)
             sum_width_opt = spa.optimize_parameter("sum width",image,left_indent,right_indent,sum_width,IQR_neighbor_removal)
             alpha, rsquared, x, y, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt, sum_width_opt,IQR_neighbor_removal)
-                print(str(counter)+ ",  Indent: "+ str(left_indent_opt) + ",  Alpha: " +str(np.round(alpha,1)) + ' dB/cm')
-                counter = counter + 1
-            except:
-                traceback.print_exc()
-                print("Error")
-                continue
-            finally:
-                image.close()
+            print(str(counter)+ ",  Indent: "+ str(left_indent_opt) + ",  Alpha: " +str(np.round(alpha,1)) + ' dB/cm')
+            counter = counter + 1
+
+        except:
+            traceback.print_exc()
+            print("Error")
+            continue
+        finally:
+            image.close()
 
             if alpha <= 0 or np.isinf(alpha) or np.isnan(alpha):
                 continue
