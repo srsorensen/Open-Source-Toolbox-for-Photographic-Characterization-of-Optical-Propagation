@@ -126,94 +126,92 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold,r_squared_th
             hf.close()
     return TE_data, TE_wav, TE_weights, TE_r_squared, TE_left_indent, TE_sum_width, TM_data, TM_wav, TM_weights, TM_r_squared, TM_left_indent, TM_sum_width
 
-directory = 'E:/Top_Down_Method/Article_Data/Processed data/GaAs/Corret_Optimized/'
-contains = 'GST3'
+directory = 'D:/Top_Down_Method/Article_Data/Processed data/AlGaAs/Correct_Optimized/'
+contains = 'ST3'
 f_ending = '.h5'
-threshold = False
+threshold = True
 alpha_threshold = 100
-r_squared_threshold = 0.2
+r_squared_threshold = 0.1
 
 TE_data, TE_wav, TE_weights, TE_r_squared, TE_left_indent, TE_sum_width, TM_data, TM_wav, TM_weights, TM_r_squared, TM_left_indent, TM_sum_width  = load_data(directory,contains,f_ending,threshold,alpha_threshold,r_squared_threshold)
 
-for i in range(3):
+threshold = False
+alpha_threshold = 100
+r_squared_threshold = 0.4
+
+TE_data1, TE_wav1, TE_weights1, TE_r_squared1, TE_left_indent1, TE_sum_width1, TM_data1, TM_wav1, TM_weights1, TM_r_squared1, TM_left_indent1, TM_sum_width1  = load_data(directory,contains,f_ending,threshold,alpha_threshold,r_squared_threshold)
+
+
+for i in range(len(TE_wav)):
     plt.scatter(TE_wav[i],TE_r_squared[i])
-plt.ylabel('R Sqaured')
-plt.xlabel('Wavelength')
+plt.ylabel('R Sqaured (TE)')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
-for i in range(3):
+for i in range(len(TE_wav)):
     plt.scatter(TE_wav[i],TE_data[i])
-plt.ylabel('Propagation Loss')
-plt.xlabel('Wavelength')
+plt.ylabel('Propagation Loss (TE) [dB/cm]')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
-for i in range(3):
+for i in range(len(TE_wav)):
     plt.scatter(TE_wav[i],TE_weights[i])
-plt.ylabel('One-sigma uncertainty')
-plt.xlabel('Wavelength')
+plt.ylabel('One-sigma uncertainty (TE) [dB/cm]')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
-for i in range(2):
+for i in range(len(TM_wav)):
     plt.scatter(TM_wav[i],TM_r_squared[i])
 plt.ylabel('R Squared (TM)')
-plt.xlabel('Wavelength')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
-for i in range(2):
+for i in range(len(TM_wav)):
     plt.scatter(TM_wav[i],TM_data[i])
-plt.ylabel('Propagation Loss')
-plt.xlabel('Wavelength')
+plt.ylabel('Propagation Loss (TM) [dB/cm]')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
-for i in range(2):
+for i in range(len(TM_wav)):
     plt.scatter(TM_wav[i],TM_weights[i])
-plt.ylabel('One-sigma uncertainty')
-plt.xlabel('Wavelength')
+plt.ylabel('One-sigma uncertainty (TM) [dB/cm]')
+plt.xlabel('Wavelength [nm]')
 plt.show()
 
 plt.figure(figsize=(10, 6))
 
 dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 
-file = '850_AlGaAs_1300_scattering_7p0_0p6angle_0_fund_higher2350_.hdf'
-
-f = klepto.archives.file_archive(file)
-f.load()
-
-wg_width = np.array(f["wg_width"])
-wg_height = np.array(f["wg_height"])
-wavelengths = np.array(f["wavelengths"])
-sT = np.array(f["sT"])
-sv = np.array(f["sv"])
-sh = np.array(f["sh"])
-
-sT_TM = sT[0]
-sT_TE = sT[1]
-sv_TM = sv[0]
-sv_TE = sv[1]
-sh_TM = sh[0]
-sh_TE = sh[1]
-
-idx = wavelengths > 890
-wavelengths = wavelengths[idx]
-sT_TM = sT_TM[idx]
-sT_TE = sT_TE[idx]
-sv_TM = sv_TM[idx]
-sv_TE = sv_TE[idx]
-sh_TM = sh_TM[idx]
-sh_TE = sh_TE[idx]
-
 plot_fontsize = 21
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_data, TE_wav, "TE", "b",TE_weights)
-#te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE threshold","r",TE_weights1)
+te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav,TE_data1,TE_wav1,"TE threshold","r",TE_weights1)
 #te_dataframe2, te_mean2, te_std2 = plot_polarization_data(dataframe_wav,TE_data2,TE_wav2,"TE","b",[910,980.1],TE_weights2)
 tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_data, TM_wav, "TM", "g",TM_weights)
-#tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM threshold","k",TM_weights1)
+tm_dataframe1, tm_mean1, tm_std1 = plot_polarization_data(dataframe_wav,TM_data1,TM_wav1,"TM threshold","k",TM_weights1)
 #tm_dataframe2, tm_mean2, tm_std2 = plot_polarization_data(dataframe_wav,TM_data2,TM_wav2,"TM","b",[910,980.1],TM_weights2)
 handles, labels = plt.gca().get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
 plt.legend(by_label.values(), by_label.keys())
 
+print('TE propagation loss (Threshold):')
+print('910 ', round(te_mean1[910.1],1), '+/-', round(te_std1[910.1],1), ' dB/cm')
+print('945 ', round(te_mean1[945],1), '+/-', round(te_std1[945],1), ' dB/cm')
+print('980 ', round(te_mean1[979.9],1), '+/-', round(te_std1[979.9],1), ' dB/cm')
+
+print('TE propagation loss (No threshold):')
+print('910 ', round(te_mean[910.1],1), '+/-', round(te_std[910.1],1), ' dB/cm')
+print('945 ', round(te_mean[945],1), '+/-', round(te_std[945],1), ' dB/cm')
+print('980 ', round(te_mean[979.9],1), '+/-', round(te_std[979.9],1), ' dB/cm')
+
+print('TM propagation loss (Threshold):')
+print('910 ', round(tm_mean1[910.1],1), '+/-', round(tm_std1[910.1],1), ' dB/cm')
+print('945 ', round(tm_mean1[945],1), '+/-', round(tm_std1[945],1), ' dB/cm')
+print('980 ', round(tm_mean1[979.9],1), '+/-', round(tm_std1[979.9],1), ' dB/cm')
+
+print('TM propagation loss (No threshold):')
+print('910 ', round(tm_mean[910.1],1), '+/-', round(tm_std[910.1],1), ' dB/cm')
+print('945 ', round(tm_mean[945],1), '+/-', round(tm_std[945],1), ' dB/cm')
+print('980 ', round(tm_mean[979.9],1), '+/-', round(tm_std[979.9],1), ' dB/cm')
 
 plt.figure(figsize=(10, 6))
 
@@ -221,14 +219,14 @@ c1 = "#377eb8"
 c2 = "#a65628"
 c3 = "#000000"
 if not te_dataframe.empty:
-    plt.plot(te_mean.index, te_mean,color=c1,label="No threshold")
+    plt.plot(te_mean.index, te_mean,color=c1,label="TE No threshold")
     plt.fill_between(te_mean.index, te_mean - te_std, te_mean + te_std, alpha=0.2,color=c1)
     plt.plot(te_mean.index, te_mean + te_std,linestyle="-", color=c1, alpha=0.3)
     plt.plot(te_mean.index, te_mean - te_std,linestyle="-", color=c1, alpha=0.3)
-#    plt.plot(te_mean1.index, te_mean1,color=c2,label="Using threshold")
-#    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2,color=c2)
-#    plt.plot(te_mean1.index, te_mean1 - te_std1,linestyle="-", color=c2, alpha=0.3)
-#    plt.plot(te_mean1.index, te_mean1 + te_std1,linestyle="-", color=c2, alpha=0.3)
+    plt.plot(te_mean1.index, te_mean1,color=c2,label="Using threshold")
+    plt.fill_between(te_mean1.index, te_mean1 - te_std1, te_mean1 + te_std1, alpha=0.2,color=c2)
+    plt.plot(te_mean1.index, te_mean1 - te_std1,linestyle="-", color=c2, alpha=0.3)
+    plt.plot(te_mean1.index, te_mean1 + te_std1,linestyle="-", color=c2, alpha=0.3)
 #    plt.plot(te_mean2.index, te_mean2,color=c3)
 #    plt.fill_between(te_mean2.index, te_mean2 - te_std2, te_mean2 + te_std2, alpha=0.2,color=c3)
 #    plt.plot(te_mean2.index, te_mean2 - te_std2,linestyle="-",color=c3,alpha=0.3)
@@ -243,14 +241,14 @@ if not te_dataframe.empty:
 
 if not tm_dataframe.empty:
     plt.figure(figsize=(10, 6))
-    plt.plot(tm_mean.index, tm_mean,color=c1,label="No threshold")
+    plt.plot(tm_mean.index, tm_mean,color=c1,label="TM No threshold")
     plt.fill_between(tm_mean.index, tm_mean - tm_std, tm_mean + tm_std, alpha=0.2,color=c1)
     plt.plot(tm_mean.index, tm_mean + tm_std, linestyle="-", color=c1, alpha=0.2)
     plt.plot(tm_mean.index, tm_mean - tm_std, linestyle="-", color=c1, alpha=0.2)
-#    plt.plot(tm_mean1.index, tm_mean1,color=c2,label="Using threshold")
-#    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2,color=c2)
-#    plt.plot(tm_mean1.index, tm_mean1 - tm_std1, linestyle="-", color=c2, alpha=0.2)
-#    plt.plot(tm_mean1.index, tm_mean1 + tm_std1, linestyle="-", color=c2, alpha=0.2)
+    plt.plot(tm_mean1.index, tm_mean1,color=c2,label="Using threshold")
+    plt.fill_between(tm_mean1.index, tm_mean1 - tm_std1, tm_mean1 + tm_std1, alpha=0.2,color=c2)
+    plt.plot(tm_mean1.index, tm_mean1 - tm_std1, linestyle="-", color=c2, alpha=0.2)
+    plt.plot(tm_mean1.index, tm_mean1 + tm_std1, linestyle="-", color=c2, alpha=0.2)
 #    plt.plot(tm_mean2.index, tm_mean2,color=c3)
 #    plt.fill_between(tm_mean2.index, tm_mean2 - tm_std2, tm_mean2 + tm_std2, alpha=0.2,color=c3)
 #    plt.plot(tm_mean2.index, tm_mean2 - tm_std2, linestyle="-", color=c3, alpha=0.2)
@@ -258,24 +256,26 @@ if not tm_dataframe.empty:
     #plt.axvline(max(tm_max), color='r', linestyle='--', label='Mean: ' + str(round(max(tm_max), 1)) + 'nm')
     plt.xlabel("Wavelength (nm)",fontsize=plot_fontsize)
     plt.ylabel("Alpha (dB/cm)",fontsize=plot_fontsize)
-    plt.legend(fontsize=plot_fontsize)
+    plt.legend( fontsize=plot_fontsize)
     plt.xticks(fontsize=plot_fontsize)
     plt.yticks(fontsize=plot_fontsize)
     plt.xlim(910,980)
 # %%
-#if not te_dataframe.empty:
-#    hf = h5py.File(directory + contains + "_TE.h5", "w")
-#    hf.create_dataset("wavelengths", data=te_mean.index)
-#    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean.iloc[cut_index:])
-#    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
-#    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
-#    hf.close()
-#if not tm_dataframe.empty:
-#    hf = h5py.File(directory + contains + "_TM.h5", "w")
-#    hf.create_dataset("wavelengths", data=tm_mean.index)
-#    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean.iloc[cut_index:])
-#    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
-#    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
-#    hf.close()
+
+if not te_dataframe.empty:
+    hf = h5py.File(directory + contains + "_TE.h5", "w")
+    hf.create_dataset("wavelengths", data=te_mean.index)
+    hf.create_dataset("Average TE loss (dB per cm)", data=te_mean)
+    hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
+    hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
+    hf.close()
+if not tm_dataframe.empty:
+    hf = h5py.File(directory + contains + "_TM.h5", "w")
+    hf.create_dataset("wavelengths", data=tm_mean.index)
+    hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean)
+    hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
+    hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
+    hf.close()
+
 
 plt.show()
