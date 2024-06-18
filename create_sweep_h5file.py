@@ -12,15 +12,14 @@ from SPA import SPA
 import os
 import h5py
 import numpy as np
-import matplotlib.pyplot as plt
 
 def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
 
-path = 'C:/Users/shd-PhotonicLab/Desktop/AlGaAs_Data/'
+path = 'D:/Top_Down_Method/GaAs_data/'
 f_ending = '.bmp'
-contains = 'ST3'
+contains = '1525'
 
 
 
@@ -45,9 +44,9 @@ chip_length = 4870
 spa = SPA(False,chip_length) #set flag to False to turn off plotting,
 
 left_indent = 200
-right_indent = 300
+right_indent = 100
 waveguide_sum_width = 80
-IQR_neighbor_removal = 5
+IQR_neighbor_removal = 1
 sum_width = 80
 
 image = spa.rotate_image(image, "flip")
@@ -83,10 +82,10 @@ else:
                 continue
 
             try:
-                left_indent_opt = spa.optimize_parameter("left indent",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
-                right_indent_opt = spa.optimize_parameter("right indent",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
+                left_indent_opt = spa.optimize_parameter("left crop",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
+                right_indent_opt = spa.optimize_parameter("right crop",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
                 sum_width_opt = spa.optimize_parameter("sum width",image,left_indent,right_indent,waveguide_sum_width,IQR_neighbor_removal)
-                alpha, rsquared, x, y, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt, sum_width_opt,
+                alpha, rsquared, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt, sum_width_opt,
                                                           IQR_neighbor_removal)
                 print(str(counter)+ ",  Indent: "+ str(left_indent_opt) + ",  Alpha: " +str(np.round(alpha,1)) + ' dB/cm')
                 counter = counter + 1
