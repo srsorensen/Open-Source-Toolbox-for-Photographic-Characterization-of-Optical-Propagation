@@ -41,11 +41,14 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
         for i in range(len(dataframe)):
             alpha_data = dataframe.iloc[i, :]
             wav_data = dataframe.columns.values
-            plt.plot(wav_data, alpha_data, f"{color}-", label=f"{polarization_label}")
-            plt.ylim(20,90)
-            plt.legend()
-            plt.title(file[i])
-            plt.show()
+            wav_data_num = pd.to_numeric(wav_data, errors='coerce')
+            plt.plot(wav_data_num, alpha_data, f"{color}-", label=f"{polarization_label}")
+        plt.ylim(20,130)
+        #plt.legend()
+        plt.xlabel('Wavelength (nm)')
+        plt.ylabel('Propagation loss (dB/cm)')
+        #plt.title(file[i], fontsize = 10)
+        plt.show()
         weighted_average_sweep = []
         weighted_std_sweep = []
         for i in range((dataframe.shape[1])):
@@ -128,7 +131,6 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold,r_squared_th
                 left_indent = np.delete(left_indent, indices_above_threshold)
                 sum_width = np.delete(sum_width, indices_above_threshold)
                 r_squared = np.delete(r_squared, indices_above_threshold)
-
             sma = simple_moving_average(alphas,window_size)
             weights_sma = simple_moving_average(weights,window_size)
             wav_sma = wav_nm[(window_size - 1) // 2 : -(window_size // 2)]
@@ -167,12 +169,12 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold,r_squared_th
             hf.close()
     return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
 
-directory = 'E:/Correct_Optimized/'
+directory = 'F:/AlGaAs_Power/'
 contains = 'ST3'
 f_ending = '.h5'
-threshold = False
-alpha_threshold = 100
-r_squared_threshold = 0.35
+threshold = True
+alpha_threshold = 110
+r_squared_threshold = 0.3
 
 #window_size = list(range(10,110,20))
 #for i in window_size:
@@ -180,7 +182,7 @@ TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_
 
 dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 
-plot_fontsize = 21
+plot_fontsize = 18
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_sma, TE_wav_sma, "TE", "b",TE_weights_sma, TE_file)
 tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_sma, TM_wav_sma, "TM", "g",TM_weights_sma, TM_file)
 handles, labels = plt.gca().get_legend_handles_labels()
@@ -196,44 +198,17 @@ tm_mean.index = pd.to_numeric(tm_mean.index, errors='coerce')
 c1 = 'k'
 c2 = 'b'
 
-plt.plot(te_mean.index, te_mean.values, color=c1, label = 'MA')
-plt.fill_between(te_mean.index, te_mean.values - te_std.values, te_mean.values + te_std.values, color=c1, alpha=0.2)
-plt.plot(te_mean.index, te_mean.values + te_std.values, linestyle='--', color=c1, alpha=0.2)
-plt.plot(te_mean.index, te_mean.values - te_std.values, linestyle='--', color=c1, alpha=0.2)
-
-plt.plot(te_mean1.index, te_mean1.values, color=c2, label = 'Savgol')
-plt.fill_between(te_mean1.index, te_mean1.values - te_std1.values, te_mean1.values + te_std1.values, color=c2, alpha=0.2)
-plt.plot(te_mean1.index, te_mean1.values + te_std1.values, linestyle='--', color=c2, alpha=0.2)
-plt.plot(te_mean1.index, te_mean1.values - te_std1.values, linestyle='--', color=c2, alpha=0.2)
-
-#plt.plot(tm_mean.index, tm_mean.values, color=c2, label = 'TM')
-#plt.fill_between(tm_mean.index, tm_mean.values - tm_std.values, tm_mean.values + tm_std.values, alpha=0.2, color=c2)
-#plt.plot(tm_mean.index, tm_mean.values + tm_std.values, linestyle="-", color=c2, alpha=0.2)
-#plt.plot(tm_mean.index, tm_mean.values - tm_std.values, linestyle="-", color=c2, alpha=0.2)
-
-plt.xlabel('Wavelength (nm)', fontsize=plot_fontsize)
-plt.ylabel('Propagation loss (dB/cm)', fontsize=plot_fontsize)
-plt.xlim(te_mean.index.min(), te_mean.index.max())
-plt.xticks(fontsize=plot_fontsize)
-plt.yticks(fontsize=plot_fontsize)
-plt.legend()
-plt.show()
-
-
-plt.plot(tm_mean.index, tm_mean.values, color=c1, label = 'MA')
-plt.fill_between(tm_mean.index, tm_mean.values - tm_std.values, tm_mean.values + tm_std.values, alpha=0.2, color=c1)
-plt.plot(tm_mean.index, tm_mean.values + tm_std.values, linestyle="-", color=c1, alpha=0.2)
-plt.plot(tm_mean.index, tm_mean.values - tm_std.values, linestyle="-", color=c1, alpha=0.2)
-
-plt.plot(tm_mean1.index, tm_mean1.values, color=c2, label='TM')
-plt.fill_between(tm_mean1.index, tm_mean1.values - tm_std1.values, tm_mean1.values + tm_std1.values, alpha=0.2, color=c2)
-plt.plot(tm_mean1.index, tm_mean1.values + tm_std1.values, linestyle="-", color=c2, alpha=0.2)
-plt.plot(tm_mean1.index, tm_mean1.values - tm_std1.values, linestyle="-", color=c2, alpha=0.2)
-
-plt.xlabel('Wavelength (nm)', fontsize=plot_fontsize)
-plt.ylabel('Propagation loss (dB/cm)', fontsize=plot_fontsize)
-plt.xlim(te_mean.index.min(), te_mean.index.max())
-plt.xticks(fontsize=plot_fontsize)
-plt.yticks(fontsize=plot_fontsize)
-plt.legend()
-plt.show()
+if not te_dataframe.empty:
+    plt.plot(te_mean.index, te_mean.values,color=c1)#,label="TE No threshold")
+    plt.fill_between(te_mean.index, te_mean.values - te_std.values, te_mean.values + te_std.values, alpha=0.2,color=c1)
+    plt.plot(te_mean.index, te_mean.values + te_std.values,linestyle="-", color=c1, alpha=0.3)
+    plt.plot(te_mean.index, te_mean.values - te_std.values,linestyle="-", color=c1, alpha=0.3)
+    plt.xlabel("Wavelength (nm)",fontsize = plot_fontsize)
+    plt.ylabel("Alpha (dB/cm)",fontsize = plot_fontsize)
+    plt.legend(fontsize=plot_fontsize)
+    plt.xlim(910,980)
+#    plt.ylim(0,75)
+    plt.xticks(fontsize=plot_fontsize)
+    plt.yticks(fontsize=plot_fontsize)
+    plt.show()
+print(te_std.mean())
