@@ -1,0 +1,269 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Dec  5 11:39:55 2023
+
+@author: frede
+"""
+
+import numpy as np
+import h5py
+import os
+import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
+from itertools import zip_longest
+import pandas as pd
+#import klepto
+
+def weighted_mean(values, weights):
+    if len(values) == 1:
+        return values[0], weights[0]
+    if type(values) == list:
+        values = np.array(values)
+        weights = np.array(weights)
+    weights = 1 / weights
+    weighted_mean = np.sum(values * weights) / np.sum(weights)
+    weighted_std = np.sqrt(np.sum(weights * (values - weighted_mean) ** 2) / np.sum(weights))
+    return weighted_mean, weighted_std
+
+
+def plot_polarization_data(wavelengths, data, data_wav, polarization_label, color, weights,file):
+    if len(data) > 0:
+        dataframe = pd.DataFrame(columns=wavelengths)
+        dataframe_weights = pd.DataFrame(columns=wavelengths)
+        for i in range(len(data)):
+            series = pd.Series(data[i], index=data_wav[i])
+            dataframe = pd.concat([dataframe, series.to_frame().T], ignore_index=True)
+        for i in range(len(weights)):
+            series = pd.Series(weights[i], index=data_wav[i])
+            dataframe_weights = pd.concat([dataframe_weights, series.to_frame().T], ignore_index=True)
+        dataframe = dataframe.dropna(axis=1)
+        dataframe_weights = dataframe_weights.dropna(axis=1)
+        for i in range(len(dataframe)):
+            alpha_data = dataframe.iloc[i, :]
+            wav_data = dataframe.columns.values
+            alpha_data = pd.to_numeric(alpha_data, errors='coerce')
+            wav_data = pd.to_numeric(wav_data, errors='coerce')
+        #    plt.plot(wav_data, alpha_data, f"{color}-", label=f"{polarization_label}")
+        #    plt.ylim(20,90)
+            #plt.legend()
+        #    plt.title(file[i])
+        #plt.ylabel('Propagation loss (dB/cm)')
+        #plt.xlabel('Wavelength (nm)')
+        #plt.show()
+        weighted_average_sweep = []
+        weighted_std_sweep = []
+        for i in range((dataframe.shape[1])):
+            column = dataframe.iloc[:, i]
+            col_weights = dataframe_weights.iloc[:, i]
+            mean, std = weighted_mean(column, col_weights)
+            weighted_average_sweep.append(mean)
+            weighted_std_sweep.append(std)
+
+        weighted_average_sweep = pd.Series(weighted_average_sweep, index=dataframe_weights.columns)
+        weighted_std_sweep = pd.Series(weighted_std_sweep, index=dataframe_weights.columns)
+        return dataframe, weighted_average_sweep, weighted_std_sweep
+    else:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+def simple_moving_average(data, window_size):
+    weights = np.ones(window_size) / window_size
+    sma = np.convolve(data, weights, mode='valid')
+    return sma
+
+def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,window_size):
+
+    TE_raw = []
+    TM_raw = []
+
+    TE_file = []
+    TM_file = []
+
+    TE_sma = []
+    TM_sma = []
+
+    TE_sav = []
+    TM_sav = []
+
+    TE_weights_sma = []
+    TM_weights_sma = []
+
+    TE_weights_sav = []
+    TM_weights_sav = []
+
+
+    TE_wav_sma = []
+    TM_wav_sma = []
+
+    TE_wav_sav = []
+    TM_wav_sav = []
+
+    TE_r_squared = []
+    TM_r_squared = []
+
+    TE_left_indent = []
+    TM_left_indent = []
+
+    TE_sum_width = []
+    TM_sum_width = []
+
+    for file in os.listdir(directory):
+        if contains.lower() in file.lower() and f_ending.lower() in file.lower():
+            #print(file)
+            hf = h5py.File(directory + file, 'r')
+            wav_nm = np.array(hf.get('wavelength'))
+            weights = np.array(hf.get('alpha_variance'))
+            left_indent = np.array(hf.get('left_indent'))
+            sum_width = np.array(hf.get('sum_width'))
+            r_squared = np.array(hf.get('r_squared'))
+            alphas = np.array(hf.get('alpha'))
+            if threshold:
+                indices_above_threshold = np.where(alphas > alpha_threshold_high)[0]
+                alphas = alphas[alphas <= alpha_threshold_high]
+                wav_nm = np.delete(wav_nm, indices_above_threshold)
+                weights = np.delete(weights, indices_above_threshold)
+                left_indent = np.delete(left_indent, indices_above_threshold)
+                sum_width = np.delete(sum_width, indices_above_threshold)
+                r_squared = np.delete(r_squared, indices_above_threshold)
+
+                indices_below_threshold = np.where(alphas < alpha_threshold_low)[0]
+                alphas = alphas[alphas >= alpha_threshold_low]
+                wav_nm = np.delete(wav_nm, indices_below_threshold)
+                weights = np.delete(weights, indices_below_threshold)
+                left_indent = np.delete(left_indent, indices_below_threshold)
+                sum_width = np.delete(sum_width, indices_below_threshold)
+                r_squared = np.delete(r_squared, indices_below_threshold)
+
+                indices_above_threshold = np.where(r_squared < r_squared_threshold)[0]
+                alphas = np.delete(alphas,indices_above_threshold)
+                wav_nm = np.delete(wav_nm, indices_above_threshold)
+                weights = np.delete(weights, indices_above_threshold)
+                left_indent = np.delete(left_indent, indices_above_threshold)
+                sum_width = np.delete(sum_width, indices_above_threshold)
+                r_squared = np.delete(r_squared, indices_above_threshold)
+
+                plt.scatter(wav_nm,alphas)
+                plt.show()
+            sma = simple_moving_average(alphas,window_size)
+            weights_sma = simple_moving_average(weights,window_size)
+            wav_sma = wav_nm[(window_size - 1) // 2 : -(window_size // 2)]
+
+            y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
+
+            if "TE" in file:
+                TE_file.append(file)
+                TE_raw.append(list(alphas))
+                TE_sma.append(list(sma))
+                TE_weights_sma.append(weights_sma)
+                TE_wav_sma.append(list(wav_sma))
+
+                TE_sav.append(list(y_savgol))
+                TE_weights_sav.append(weights)
+                TE_wav_sav.append(([float(x.decode()) for x in wav_nm]))
+
+                TE_r_squared.append(r_squared)
+                TE_left_indent.append(left_indent)
+                TE_sum_width.append(sum_width)
+
+            else:
+                TM_file.append(file)
+                TM_raw.append(list(alphas))
+                TM_sma.append(list(sma))
+                TM_weights_sma.append(weights_sma)
+                TM_wav_sma.append(list(wav_sma))
+
+                TM_sav.append(list(y_savgol))
+                TM_weights_sav.append(weights)
+                TM_wav_sav.append(([float(x.decode()) for x in wav_nm]))
+
+                TM_r_squared.append(r_squared)
+                TM_left_indent.append(left_indent)
+                TM_sum_width.append(sum_width)
+            hf.close()
+    return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
+
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Power_data/'
+contains = 'optimized_3_ST3_width_1350nm_80mW_TE_1'
+f_ending = '.h5'
+threshold = True
+alpha_threshold_high = 100
+alpha_threshold_low = 4
+r_squared_threshold = 0.4
+
+#window_size = list(range(10,110,20))
+#for i in window_size:
+TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width  = load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,20)
+
+
+dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
+
+plot_fontsize = 15
+te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_sma, TE_wav_sma, "TE", "b",TE_weights_sma, TE_file)
+
+average = True
+if average:
+    te_mean.index = pd.to_numeric(te_mean.index, errors='coerce')
+
+    # Drop rows where the index could not be converted to a number (i.e., NaN values)
+    te_mean = te_mean.dropna()
+
+    # Filter the rows where the index is between 930 and 950
+    filtered_series = te_mean[(te_mean.index >= 920) & (te_mean.index <= 940)]
+
+    # Calculate the mean of the filtered Series
+    average_value = filtered_series.mean()
+
+    print(round(average_value,2))
+
+    filtered_series = te_mean[(te_mean.index >= 925) & (te_mean.index <= 935)]
+
+    # Calculate the mean of the filtered Series
+    average_value = filtered_series.mean()
+
+    print(round(average_value,2))
+
+from matplotlib.lines import Line2D
+from matplotlib.legend_handler import HandlerTuple
+
+power = np.arange(10,90,10)
+
+alpha_920_940_1 = [53.56,72.83,70.8,72.54,70.95,73.21,70.88,68.32]
+alpha_925_935_1 = [60.2,79.11,75.9,80.36,79.49,85.34,76.58,78.23]
+
+alpha_920_940_2 = [40.56,47.62,41.5,41.93,47.19,45.04,50.24,50.58]
+alpha_925_935_2 = [42.29,45.75,41.64,40.66,48.7,45.6,49.09,48.36]
+
+averages_920_940 = [(a + b) / 2 for a, b in zip(alpha_920_940_1, alpha_920_940_2)]
+averages_925_935 = [(a + b) / 2 for a, b in zip(alpha_925_935_1, alpha_925_935_2)]
+plt.scatter(power, alpha_920_940_1, marker='*', color='r', s=150)
+plt.scatter(power, alpha_920_940_2, marker='s', color='r', s=150)
+plt.scatter(power, alpha_925_935_1, marker='*', color='k', s=150)
+plt.scatter(power, alpha_925_935_2, marker='s', color='k', s=150)
+plt.scatter(power,averages_920_940,marker='v',color='b',s=150)
+plt.scatter(power,averages_925_935,marker='o',color='b',s=150)
+
+# Custom legend combining both markers
+legend_elements = [
+    (Line2D([0], [0], marker='*', color='r', linestyle='None', markersize=10),
+     Line2D([0], [0], marker='s', color='r', linestyle='None', markersize=10)),
+    (Line2D([0], [0], marker='*', color='k', linestyle='None', markersize=10),
+     Line2D([0], [0], marker='s', color='k', linestyle='None', markersize=10)),
+    (Line2D([0], [0], marker='v', color='b', linestyle='None', markersize=10),
+     Line2D([0], [0], marker='o', color='b', linestyle='None', markersize=10))
+]
+
+# Labels for the legend
+labels = ['Avg. loss 920-940 nm', 'Avg. loss 925-935 nm','Avg. red and black']
+
+# Creating the legend
+plt.legend(legend_elements, labels, handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=14,
+           bbox_to_anchor=(0, 1.5), loc='upper left')
+# Set labels
+plt.xlabel('Power [mW]', fontsize=18)
+plt.ylabel('Propagation loss [dB/cm]', fontsize=18)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+
+plt.tight_layout()
+
+# Show plot
+plt.show()
