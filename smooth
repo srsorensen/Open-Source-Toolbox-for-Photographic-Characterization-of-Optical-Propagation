@@ -179,13 +179,13 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
             hf.close()
     return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
 
-directory = 'C:/Users/au617007/OneDrive - Aarhus Universitet/Desktop/AlGaAs_Power/'
-contains = 'optimized_2'
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/GaAs data/'
+contains = '1350'
 f_ending = '.h5'
-threshold = True
-alpha_threshold_high = 85
+threshold = False
+alpha_threshold_high = 100
 alpha_threshold_low = 20
-r_squared_threshold = 0.2
+r_squared_threshold = 0.35
 
 #window_size = list(range(10,110,20))
 #for i in window_size:
@@ -231,7 +231,7 @@ print("Maximum value in the range 920-940 nm:", max_value)
 c1 = 'k'
 c2 = 'b'
 
-plt.plot(te_mean.index, te_mean.values, color=c1, label = 'TE with threshold alpha: ' + '(' + str(alpha_threshold_low) + ':' + str(alpha_threshold_high) + ') ' +  'Rsq :' + str(r_squared_threshold))
+plt.plot(te_mean.index, te_mean.values, color=c1, label = 'TE without threshold alpha: ' + '(' + str(alpha_threshold_low) + ':' + str(alpha_threshold_high) + ') ' +  'Rsq :' + str(r_squared_threshold))
 plt.fill_between(te_mean.index, te_mean.values - te_std.values, te_mean.values + te_std.values, color=c1, alpha=0.2)
 plt.plot(te_mean.index, te_mean.values + te_std.values, linestyle='--', color=c1, alpha=0.2)
 plt.plot(te_mean.index, te_mean.values - te_std.values, linestyle='--', color=c1, alpha=0.2)
@@ -243,3 +243,33 @@ plt.xticks(fontsize=plot_fontsize)
 plt.yticks(fontsize=plot_fontsize)
 plt.legend()
 plt.show()
+
+plt.plot(tm_mean.index, tm_mean.values, color=c1, label = 'TM with threshold alpha: ' + '(' + str(alpha_threshold_low) + ':' + str(alpha_threshold_high) + ') ' +  'Rsq :' + str(r_squared_threshold))
+plt.fill_between(tm_mean.index, tm_mean.values - tm_std.values, tm_mean.values + tm_std.values, color=c1, alpha=0.2)
+plt.plot(tm_mean.index, tm_mean.values + tm_std.values, linestyle='--', color=c1, alpha=0.2)
+plt.plot(tm_mean.index, tm_mean.values - tm_std.values, linestyle='--', color=c1, alpha=0.2)
+
+plt.xlabel('Wavelength (nm)', fontsize=plot_fontsize)
+plt.ylabel('Propagation loss (dB/cm)', fontsize=plot_fontsize)
+plt.xlim(tm_mean.index.min(), tm_mean.index.max())
+plt.xticks(fontsize=plot_fontsize)
+plt.yticks(fontsize=plot_fontsize)
+plt.legend()
+plt.show()
+
+save = False
+if save:
+    if not te_dataframe.empty:
+        hf = h5py.File(directory + contains + "_TE.h5", "w")
+        hf.create_dataset("wavelengths", data=te_mean.index)
+        hf.create_dataset("Average TE loss (dB per cm)", data=te_mean)
+        hf.create_dataset("Upper confidencebound", data=te_mean + te_std)
+        hf.create_dataset("Lower confidencebound", data=te_mean - te_std)
+        hf.close()
+    if not tm_dataframe.empty:
+        hf = h5py.File(directory + contains + "_TM.h5", "w")
+        hf.create_dataset("wavelengths", data=tm_mean.index)
+        hf.create_dataset("Average TM loss (dB per cm)", data=tm_mean)
+        hf.create_dataset("Upper confidencebound", data=tm_mean + tm_std)
+        hf.create_dataset("Lower confidencebound", data=tm_mean - tm_std)
+        hf.close()
