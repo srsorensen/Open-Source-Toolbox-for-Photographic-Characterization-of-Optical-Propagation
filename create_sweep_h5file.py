@@ -6,8 +6,6 @@ Created on Mon Nov 27 13:20:07 2023
 """
 import traceback
 from PIL import Image
-import sys
-sys.path.append("C:/Users/shd-PhotonicLab/PycharmProjects/SPA/") #Path to repository with SPA.py and Lab_cam.py
 from SPA import SPA
 import os
 import h5py
@@ -16,7 +14,7 @@ import numpy as np
 def get_wavelength(filename):
     return str(np.round(float(filename.split(".bmp")[0].split("_")[-1][:-2]),1))
 
-
+#Specific directory, file ending and keyword to load desired files
 path = 'D:/Top_Down_Method/GaAs_data/'
 f_ending = '.bmp'
 contains = '1525'
@@ -25,7 +23,7 @@ contains = '1525'
 
 image_path_dict = {}
 
-
+#Getting and printing all the found file names based on the above criteria.
 for image_dir in os.listdir(path):
     if os.path.isdir(path + image_dir) and contains in image_dir:
         filenames = []
@@ -36,6 +34,7 @@ for image_dir in os.listdir(path):
 
 print(image_path_dict.keys())
 
+#Initially runs a test data process so make sure everything works as intented.
 test_image = list(image_path_dict.values())[0]
 test_path = list(image_path_dict.keys())[0]
 image = Image.open(path + test_path + "/" + image_path_dict[test_path][0])
@@ -61,6 +60,7 @@ else:
     counter = 0
     for key in image_path_dict.keys():
         print(key)
+        #Initiate variables for all the desired outputs of the function and the optimization procedure
         files = image_path_dict[key]
         wavelengths = []
         r_squared_values = []
@@ -72,7 +72,7 @@ else:
         left_indent_sweep = []
         sum_width_sweep = []
         for file in files:
-
+            #Open the image and attempt to find the optimal parameters. A try except loop is used as sometimes this fails.
             try:
                 image = Image.open(path + key + "/" + file)
                 image = spa.rotate_image(image,"flip")
@@ -95,7 +95,7 @@ else:
                 continue
             finally:
                 image.close()
-
+            #Remove non physical results. This could be expanded to remove very large values which soemtimes also occur, such as 1000 dB/cm
             if alpha <= 0 or np.isinf(alpha) or np.isnan(alpha):
                 continue
             else:
@@ -110,7 +110,7 @@ else:
                 sum_width_sweep.append(sum_width_opt)
 
 
-
+        #Save all the obtained variables in a .h5 file
         hf = h5py.File(path + key + ".h5", 'w')
         hf.create_dataset("alpha", data=alphas)
         hf.create_dataset("wavelength", data=wavelengths)
