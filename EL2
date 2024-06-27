@@ -13,6 +13,8 @@ from scipy.signal import savgol_filter
 from itertools import zip_longest
 import pandas as pd
 #import klepto
+from matplotlib.lines import Line2D
+from matplotlib.legend_handler import HandlerTuple
 
 def weighted_mean(values, weights):
     if len(values) == 1:
@@ -43,13 +45,13 @@ def plot_polarization_data(wavelengths, data, data_wav, polarization_label, colo
             wav_data = dataframe.columns.values
             alpha_data = pd.to_numeric(alpha_data, errors='coerce')
             wav_data = pd.to_numeric(wav_data, errors='coerce')
-        #    plt.plot(wav_data, alpha_data, f"{color}-", label=f"{polarization_label}")
-        #    plt.ylim(20,90)
-            #plt.legend()
-        #    plt.title(file[i])
-        #plt.ylabel('Propagation loss (dB/cm)')
-        #plt.xlabel('Wavelength (nm)')
-        #plt.show()
+            plt.plot(wav_data, alpha_data, f"{color}-", label=f"{polarization_label}")
+            plt.ylim(20,90)
+            plt.legend()
+            plt.title(file[i])
+        plt.ylabel('Propagation loss (dB/cm)')
+        plt.xlabel('Wavelength (nm)')
+        plt.show()
         weighted_average_sweep = []
         weighted_std_sweep = []
         for i in range((dataframe.shape[1])):
@@ -71,7 +73,7 @@ def simple_moving_average(data, window_size):
     return sma
 
 def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,window_size):
-
+    #Create variables used to extract data with sma refering to simple moving average and sav refering to Savitzky-Golay
     TE_raw = []
     TM_raw = []
 
@@ -116,6 +118,7 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
             sum_width = np.array(hf.get('sum_width'))
             r_squared = np.array(hf.get('r_squared'))
             alphas = np.array(hf.get('alpha'))
+            #Threshold values can be used to remove divergent data
             if threshold:
                 indices_above_threshold = np.where(alphas > alpha_threshold_high)[0]
                 alphas = alphas[alphas <= alpha_threshold_high]
@@ -140,15 +143,17 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
                 left_indent = np.delete(left_indent, indices_above_threshold)
                 sum_width = np.delete(sum_width, indices_above_threshold)
                 r_squared = np.delete(r_squared, indices_above_threshold)
-
-                plt.scatter(wav_nm,alphas)
-                plt.show()
+                #The raw, unsmoothed data can be plotted
+                #plt.scatter(wav_nm,alphas)
+                #plt.show()
+            #Two different smoothing methods
             sma = simple_moving_average(alphas,window_size)
             weights_sma = simple_moving_average(weights,window_size)
             wav_sma = wav_nm[(window_size - 1) // 2 : -(window_size // 2)]
 
             y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
-
+            
+            #Create variables for either TE or TM files
             if "TE" in file:
                 TE_file.append(file)
                 TE_raw.append(list(alphas))
@@ -181,24 +186,28 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
             hf.close()
     return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
 
+#Using directory, contains and ending specific files can be read
 directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Power_data/'
 contains = 'optimized_3_ST3_width_1350nm_80mW_TE_1'
 f_ending = '.h5'
+
+#Using threshold = True allows for removal of divergent data
 threshold = True
 alpha_threshold_high = 100
 alpha_threshold_low = 4
 r_squared_threshold = 0.4
 
-#window_size = list(range(10,110,20))
-#for i in window_size:
 TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width  = load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,20)
 
-
+#Create wavelength variable used for plotting
 dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 
 plot_fontsize = 15
+
+#Plotting of individual data files
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_sma, TE_wav_sma, "TE", "b",TE_weights_sma, TE_file)
 
+#Determine average propagation loss in some wavelength range
 average = True
 if average:
     te_mean.index = pd.to_numeric(te_mean.index, errors='coerce')
@@ -221,9 +230,8 @@ if average:
 
     print(round(average_value,2))
 
-from matplotlib.lines import Line2D
-from matplotlib.legend_handler import HandlerTuple
 
+#Plot of the data obtained from using the average method above
 power = np.arange(10,90,10)
 
 alpha_920_940_1 = [53.56,72.83,70.8,72.54,70.95,73.21,70.88,68.32]
@@ -251,13 +259,11 @@ legend_elements = [
      Line2D([0], [0], marker='o', color='b', linestyle='None', markersize=10))
 ]
 
-# Labels for the legend
 labels = ['Avg. loss 920-940 nm', 'Avg. loss 925-935 nm','Avg. red and black']
 
 # Creating the legend
 plt.legend(legend_elements, labels, handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=14,
            bbox_to_anchor=(0, 1.5), loc='upper left')
-# Set labels
 plt.xlabel('Power [mW]', fontsize=18)
 plt.ylabel('Propagation loss [dB/cm]', fontsize=18)
 plt.xticks(fontsize=15)
@@ -265,5 +271,4 @@ plt.yticks(fontsize=15)
 
 plt.tight_layout()
 
-# Show plot
 plt.show()
