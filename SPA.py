@@ -189,7 +189,7 @@ class SPA:
         return image
 
     def optimize_parameter(self, parameter, image, left_crop, right_crop, waveguide_sum_width,
-                           IQR_neighbor_removal):
+                           IQR_neighbor_removal,invalid_index):
         # Optimizing the parameters used in the straight waveguide fit
         plot_state = self.show_plots
         if plot_state:
@@ -259,6 +259,9 @@ class SPA:
             point_mean.append(point_diff)
 
         # Finding the point where the variation in adjacent points is minimum
+        if invalid_index:
+            del point_mean[invalid_index]
+
         min_point_mean = point_mean.index(min(point_mean))
         ideal_crop = crop[index_min[min_point_mean]]
 
