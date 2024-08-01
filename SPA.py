@@ -21,7 +21,7 @@ import scipy.ndimage as ndi
 import warnings
 from skimage.color import rgb2gray
 import matplotlib.patches as patches
-import cv2
+#import cv2
 
 warnings.filterwarnings('ignore')
 
@@ -198,21 +198,21 @@ class SPA:
 
         # Fitting for varying left/right crop and sum widths
         if parameter == "left crop":
-            crop = np.arange(201, 501, 2)
+            crop = np.arange(10, 350, 2)
             for i in range(len(crop)):
                 alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, crop[i], right_crop,
-                                                                            waveguide_sum_width, IQR_neighbor_removal)
+                                                                                waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "right crop":
-            crop = np.arange(150, 450, 2)
+            crop = np.arange(10, 350, 2)
             for i in range(len(crop)):
                 alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, crop[i],
                                                                             waveguide_sum_width, IQR_neighbor_removal)
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
-            crop = np.arange(40, 200, 1)
+            crop = np.arange(10, 150, 2)
             for i in range(len(crop)):
                 alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, right_crop,
                                                                             crop[i], IQR_neighbor_removal)
@@ -225,6 +225,12 @@ class SPA:
         dI = crop[1] - crop[0]
         smoothed_alpha = savgol_filter(converge_alpha, 4, 1, mode="nearest")
         alpha_crop = np.gradient(smoothed_alpha, dI)
+
+        # Remove divergent points in the differentiated data
+        mask = np.abs(alpha_crop) <= 2.5
+
+        alpha_crop = alpha_crop[mask]
+        crop = crop[mask]
 
         # Findng points below threshold
         index_min = []
@@ -266,7 +272,7 @@ class SPA:
             plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_crop)], fontsize=16)
             plt.show()
 
-        return ideal_crop
+        return min_point_mean, ideal_crop
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
         # Removal of outliers using the interquartile method.
