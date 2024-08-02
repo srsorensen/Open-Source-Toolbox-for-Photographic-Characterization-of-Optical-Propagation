@@ -212,7 +212,7 @@ class SPA:
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
-            crop = np.arange(10, 150, 2)
+            crop = np.arange(10, 100, 2)
             for i in range(len(crop)):
                 alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, right_crop,
                                                                             crop[i], IQR_neighbor_removal)
@@ -227,7 +227,7 @@ class SPA:
         alpha_crop = np.gradient(smoothed_alpha, dI)
 
         # Remove divergent points in the differentiated data
-        mask = np.abs(alpha_crop) <= 2.5
+        mask = np.abs(alpha_crop) <= 1
 
         alpha_crop = alpha_crop[mask]
         crop = crop[mask]
@@ -556,10 +556,11 @@ class SPA:
 
     def straight_waveguide(self, image, optimize_parameter):
         IQR_neighbor_removal = 1
+        invalid_index = []
         if optimize_parameter:
-            input_crop = self.optimize_parameter("left crop", image, 200, 100, 80, IQR_neighbor_removal)
-            output_crop = self.optimize_parameter("right crop", image, 200, 100, 80, IQR_neighbor_removal)
-            interval = self.optimize_parameter("sum width", image, 200, 100, 80, IQR_neighbor_removal)
+            input_crop = self.optimize_parameter("left crop", image, 200, 100, 80, IQR_neighbor_removal, invalid_index)
+            output_crop = self.optimize_parameter("right crop", image, 200, 100, 80, IQR_neighbor_removal, invalid_index)
+            interval = self.optimize_parameter("sum width", image, 200, 100, 80, IQR_neighbor_removal, invalid_index)
         else:
             input_crop = np.int32(input("Enter left crop: "))
             output_crop = np.int32(input("Enter right crop: "))
