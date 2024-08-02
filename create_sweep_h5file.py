@@ -71,12 +71,13 @@ else:
         sum_width_sweep = []
 
         # Initialize lists to keep track of invalid indices
-        invalid_sum_indices = []
-        invalid_left_indices = []
-        invalid_right_indices = []
-
+        point_mean_sum = []
+        point_mean_left = []
+        point_mean_right = []
+        invalid_left = []
+        invalid_right = []
+        invalid_sum = []
         for file in files:
-            valid_alpha_found = False  # Flag to track if a valid alpha has been found
             retries = 0  # To track the number of retries
 
             while retries < 3:  # Attempt up to 3 times
@@ -87,37 +88,35 @@ else:
                         # Calculate all indices on the first attempt or when adjusting the sum index
                         sum_index, point_mean_sum, sum_width_opt = spa.optimize_parameter(
                             "sum width", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
-                            invalid_sum_indices
+                            point_mean_sum
                         )
                         left_index, point_mean_left, left_indent_opt = spa.optimize_parameter(
                             "left crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
-                            invalid_left_indices
+                            point_mean_left
                         )
                         right_index, point_mean_right, right_indent_opt = spa.optimize_parameter(
                             "right crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
-                            invalid_right_indices
+                            point_mean_right
                         )
-                    elif retries == 1:
+                    if retries == 1:
                         # Recalculate only the left index and related values
                         left_index, point_mean_left, left_indent_opt = spa.optimize_parameter(
                             "left crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
-                            invalid_left_indices
+                            point_mean_left
                         )
-                        print(left_indent_opt)
-                        print(left_index)
-
-                    elif retries == 2:
+                    if retries == 2:
                         # Recalculate only the right index and related values
                         right_index, point_mean_right, right_indent_opt = spa.optimize_parameter(
                             "right crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
-                            invalid_right_indices
+                            point_mean_right
                         )
+
 
                     # Analyze the image to get the alpha value
                     alpha, rsquared, alpha_variance = spa.analyze_image(
                         image, left_indent_opt, right_indent_opt, sum_width_opt, IQR_neighbor_removal
                     )
-                    print(alpha)
+
                 except Exception as e:
                     print(f"Error processing file {file}: {e}")
                     traceback.print_exc()
@@ -126,30 +125,38 @@ else:
                     image.close()
 
                 # Check if alpha is valid
-                if alpha <= 0 or alpha > 200 or np.isinf(alpha) or np.isnan(alpha):
+                if alpha <= 7 or alpha > 150 or np.isinf(alpha) or np.isnan(alpha):
+
                     # Check point_mean and adjust indices if necessary
                     if retries == 0:
-                        if point_mean_sum > 1:
-                            if sum_index not in invalid_sum_indices:
-                                invalid_sum_indices.append(sum_index)
-                        else:
-                            retries =+ 1
-                    elif retries == 1:
-                        if point_mean_left > 1:
-                            if left_index not in invalid_left_indices:
-                                invalid_left_indices.append(left_index)
-                        else:
-                            retries =+ 1
-                    elif retries == 2:
-                        if point_mean_right > 1:
-                            if right_index not in invalid_right_indices:
-                                invalid_right_indices.append(right_index)
-                        else:
-                            retries =+ 1
+                        invalid_sum.append(sum_index)
+                        for index in invalid_sum:
+                            point_mean_sum[index] = None
+                        count_non_none = len([item for item in point_mean_sum if item is not None])
+                        if count_non_none <= 1:
+                            retries += 1
+
+                    if retries == 1:
+                        invalid_left.append(left_index)
+                        for index in invalid_left:
+                            point_mean_left[index] = None
+                        count_non_none = len([item for item in point_mean_left if item is not None])
+                        if count_non_none <= 1:
+                            retries += 1
+
+                    if retries == 2:
+                        invalid_right.append(right_index)
+                        for index in invalid_right:
+                            point_mean_right[index] = None
+                        count_non_none = len([item for item in point_mean_right if item is not None])
+                        if count_non_none <= 1:
+                            retries += 1
+
+
 
                         # Retry the current index adjustment
-                    else:
-                        print('All options exhausted for this file.')
+                    if retries == 3:
+                        print('No suitable parameters were found for', file)
                         break  # Exit the while loop if no valid options are left
 
                 else:
@@ -165,13 +172,15 @@ else:
                     left_indent_sweep.append(left_indent_opt)
                     right_indent_sweep.append(right_indent_opt)
                     sum_width_sweep.append(sum_width_opt)
-                    valid_alpha_found = True  # Mark that a valid alpha has been found
                     break  # Exit while loop if a valid alpha is found
 
             # Reset invalid indices lists after each file
-            invalid_sum_indices = []
-            invalid_left_indices = []
-            invalid_right_indices = []
+            point_mean_sum = []
+            point_mean_left = []
+            point_mean_right = []
+            invalid_left = []
+            invalid_right = []
+            invalid_sum = []
 
 
 
