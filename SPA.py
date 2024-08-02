@@ -212,7 +212,7 @@ class SPA:
                 converge_alpha.append(alpha_dB)
 
         elif parameter == "sum width":
-            crop = np.arange(10, 100, 2)
+            crop = np.arange(10, 120, 2)
             for i in range(len(crop)):
                 alpha_dB, r_squared, alpha_dB_variance = self.analyze_image(image, left_crop, right_crop,
                                                                             crop[i], IQR_neighbor_removal)
@@ -260,12 +260,23 @@ class SPA:
 
         # Finding the point where the variation in adjacent points is minimum
 
-        for index in sorted(invalid_index, reverse=True):
-            if index < len(point_mean):  # Ensure index is within bounds
-                del point_mean[index]
-
         min_point_mean = point_mean.index(min(point_mean))
         ideal_crop = crop[index_min[min_point_mean]]
+
+        if invalid_index:
+            # Create a list of indices corresponding to valid entries
+            filtered_indices = [i for i, value in enumerate(invalid_index) if value is not None]
+            filtered_values = [invalid_index[i] for i in filtered_indices]
+
+            # Ensure that there are valid entries to process
+            if filtered_values:
+                # Find the index of the minimum value in the filtered list
+                min_value = min(filtered_values)
+                min_index_in_filtered = filtered_values.index(min_value)
+
+                # Map back to the original index using the filtered_indices list
+                min_point_mean = filtered_indices[min_index_in_filtered]
+                ideal_crop = crop[index_min[min_point_mean]]
 
         self.show_plots = plot_state
         if self.show_plots:
@@ -277,7 +288,7 @@ class SPA:
             plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_crop)], fontsize=16)
             plt.show()
 
-        return min_point_mean, len(point_mean), ideal_crop
+        return min_point_mean, point_mean, ideal_crop
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
         # Removal of outliers using the interquartile method.
