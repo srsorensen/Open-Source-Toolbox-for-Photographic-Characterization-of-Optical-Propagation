@@ -70,68 +70,108 @@ else:
         left_indent_sweep = []
         sum_width_sweep = []
 
-        for file in files:
-            invalid_left_indices = []
-            invalid_right_indices = []
-            invalid_sum_indices = []
+        # Initialize lists to keep track of invalid indices
+        invalid_sum_indices = []
+        invalid_left_indices = []
+        invalid_right_indices = []
 
-            while True:
+        for file in files:
+            valid_alpha_found = False  # Flag to track if a valid alpha has been found
+            retries = 0  # To track the number of retries
+
+            while retries < 3:  # Attempt up to 3 times
                 try:
                     image = Image.open(path + key + "/" + file)
                     image = spa.rotate_image(image, "flip")
-                except:
-                    print(f"PIL error at: {file}")
+                    if retries == 0:
+                        # Calculate all indices on the first attempt or when adjusting the sum index
+                        sum_index, point_mean_sum, sum_width_opt = spa.optimize_parameter(
+                            "sum width", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
+                            invalid_sum_indices
+                        )
+                        left_index, point_mean_left, left_indent_opt = spa.optimize_parameter(
+                            "left crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
+                            invalid_left_indices
+                        )
+                        right_index, point_mean_right, right_indent_opt = spa.optimize_parameter(
+                            "right crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
+                            invalid_right_indices
+                        )
+                    elif retries == 1:
+                        # Recalculate only the left index and related values
+                        left_index, point_mean_left, left_indent_opt = spa.optimize_parameter(
+                            "left crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
+                            invalid_left_indices
+                        )
+                        print(left_indent_opt)
+                        print(left_index)
+
+                    elif retries == 2:
+                        # Recalculate only the right index and related values
+                        right_index, point_mean_right, right_indent_opt = spa.optimize_parameter(
+                            "right crop", image, left_indent, right_indent, waveguide_sum_width, IQR_neighbor_removal,
+                            invalid_right_indices
+                        )
+
+                    # Analyze the image to get the alpha value
+                    alpha, rsquared, alpha_variance = spa.analyze_image(
+                        image, left_indent_opt, right_indent_opt, sum_width_opt, IQR_neighbor_removal
+                    )
+                    print(alpha)
+                except Exception as e:
+                    print(f"Error processing file {file}: {e}")
                     traceback.print_exc()
-                    break
-
-                try:
-                    # Optimize parameters, passing the list of invalid indices to avoid
-                    left_index, left_indent_opt = spa.optimize_parameter("left crop", image, left_indent, right_indent,
-                                                                         waveguide_sum_width, IQR_neighbor_removal,
-                                                                         invalid_left_indices)
-                    right_index, right_indent_opt = spa.optimize_parameter("right crop", image, left_indent,
-                                                                           right_indent, waveguide_sum_width,
-                                                                           IQR_neighbor_removal,
-                                                                           invalid_right_indices)
-                    sum_index, sum_width_opt = spa.optimize_parameter("sum width", image, left_indent, right_indent,
-                                                                      waveguide_sum_width, IQR_neighbor_removal,
-                                                                      invalid_sum_indices)
-
-                    # Analyze the image with the optimized parameters
-                    alpha, rsquared, alpha_variance = spa.analyze_image(image, left_indent_opt, right_indent_opt,
-                                                                        sum_width_opt, IQR_neighbor_removal)
-
-                    # If the alpha value is invalid, store the indices to avoid them in the future
-                    if alpha <= 0 or alpha > 200 or np.isinf(alpha) or np.isnan(alpha):
-                        invalid_left_indices.append(left_index)
-                        invalid_right_indices.append(right_index)
-                        invalid_sum_indices.append(sum_index)
-                    else:
-                        # Valid alpha found, proceed with processing and break out of the loop
-                        print(
-                            f"{str(counter)}, left indent: {left_indent_opt}, right indent: {right_indent_opt}, sum width: {sum_width_opt}, Loss: {np.round(alpha, 1)} dB/cm")
-                        counter += 1
-                        wavelength = get_wavelength(file)
-                        alphas.append(alpha)
-                        alpha_variances.append(alpha_variance)
-                        wavelengths.append(wavelength)
-                        r_squared_values.append(rsquared)
-                        left_indent_sweep.append(left_indent_opt)
-                        right_indent_sweep.append(right_indent_opt)
-                        sum_width_sweep.append(sum_width_opt)
-                        break  # Exit while loop to move on to the next file
-
-                except:
-                    traceback.print_exc()
-                    print("Error")
-                    break
+                    break  # Skip to next file if an exception occurs
                 finally:
                     image.close()
 
-            # Reset the invalid indices list for the next file
+                # Check if alpha is valid
+                if alpha <= 0 or alpha > 200 or np.isinf(alpha) or np.isnan(alpha):
+                    # Check point_mean and adjust indices if necessary
+                    if retries == 0:
+                        if point_mean_sum > 1:
+                            if sum_index not in invalid_sum_indices:
+                                invalid_sum_indices.append(sum_index)
+                        else:
+                            retries =+ 1
+                    elif retries == 1:
+                        if point_mean_left > 1:
+                            if left_index not in invalid_left_indices:
+                                invalid_left_indices.append(left_index)
+                        else:
+                            retries =+ 1
+                    elif retries == 2:
+                        if point_mean_right > 1:
+                            if right_index not in invalid_right_indices:
+                                invalid_right_indices.append(right_index)
+                        else:
+                            retries =+ 1
+
+                        # Retry the current index adjustment
+                    else:
+                        print('All options exhausted for this file.')
+                        break  # Exit the while loop if no valid options are left
+
+                else:
+                    # If alpha is valid, store the results and move to the next file
+                    print(
+                        f"{counter}, left indent: {left_indent_opt}, right indent: {right_indent_opt}, sum width: {sum_width_opt}, Loss: {np.round(alpha, 1)} dB/cm")
+                    counter += 1
+                    wavelength = get_wavelength(file)
+                    alphas.append(alpha)
+                    alpha_variances.append(alpha_variance)
+                    wavelengths.append(wavelength)
+                    r_squared_values.append(rsquared)
+                    left_indent_sweep.append(left_indent_opt)
+                    right_indent_sweep.append(right_indent_opt)
+                    sum_width_sweep.append(sum_width_opt)
+                    valid_alpha_found = True  # Mark that a valid alpha has been found
+                    break  # Exit while loop if a valid alpha is found
+
+            # Reset invalid indices lists after each file
+            invalid_sum_indices = []
             invalid_left_indices = []
             invalid_right_indices = []
-            invalid_sum_indices = []
 
 
 
