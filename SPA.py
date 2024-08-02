@@ -259,8 +259,10 @@ class SPA:
             point_mean.append(point_diff)
 
         # Finding the point where the variation in adjacent points is minimum
-        if invalid_index:
-            del point_mean[invalid_index]
+
+        for index in sorted(invalid_index, reverse=True):
+            if index < len(point_mean):  # Ensure index is within bounds
+                del point_mean[index]
 
         min_point_mean = point_mean.index(min(point_mean))
         ideal_crop = crop[index_min[min_point_mean]]
@@ -275,7 +277,7 @@ class SPA:
             plt.legend(["Smoothed $\\alpha$ values", "Optimal " + parameter + " " + str(ideal_crop)], fontsize=16)
             plt.show()
 
-        return min_point_mean, ideal_crop
+        return min_point_mean, len(point_mean), ideal_crop
 
     def remove_outliers_IQR(self, x, data, subsets, num_neighbors):
         # Removal of outliers using the interquartile method.
