@@ -10,9 +10,11 @@ import h5py
 import os
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
+from itertools import zip_longest
 import pandas as pd
-#import klepto
 from matplotlib.lines import Line2D
+#import klepto
+from matplotlib.legend_handler import HandlerTuple
 
 def weighted_mean(values, weights):
     if len(values) == 1:
@@ -117,7 +119,6 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
             r_squared = np.array(hf.get('r_squared'))
             alphas = np.array(hf.get('alpha'))
             if threshold:
-
                 indices_above_threshold = np.where(alphas > alpha_threshold_high)[0]
                 alphas = alphas[alphas <= alpha_threshold_high]
                 wav_nm = np.delete(wav_nm, indices_above_threshold)
@@ -141,12 +142,12 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
                 left_indent = np.delete(left_indent, indices_above_threshold)
                 sum_width = np.delete(sum_width, indices_above_threshold)
                 r_squared = np.delete(r_squared, indices_above_threshold)
-
+                #plt.scatter(wav_nm,alphas)
+                #plt.show()
             sma = simple_moving_average(alphas,window_size)
             weights_sma = simple_moving_average(weights,window_size)
             wav_sma = wav_nm[(window_size - 1) // 2 : -(window_size // 2)]
-            plt.plot(wav_nm, alphas)
-            plt.show()
+
             y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
 
             if "TE" in file:
@@ -181,33 +182,27 @@ def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_t
             hf.close()
     return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
 
-directory = 'C:/Users/au617007/OneDrive - Aarhus Universitet/Desktop/AlGaAs_Power/'
-contains = '10mW'
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Power_Data/'
+contains = '3_ST3_width_1350nm_2.5mW'
 f_ending = '.h5'
 threshold = True
-alpha_threshold_high = 100
+alpha_threshold_high = 90
 alpha_threshold_low = 0
 r_squared_threshold = 0.0
-
-average = False
 
 #window_size = list(range(10,110,20))
 #for i in window_size:
 TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width  = load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,20)
 
-for i in range(len(TE_file)):
-    plt.scatter(TE_wav_sav[i],TE_r_squared[i])
-plt.show()
-
-#for i in range(2):
-#    plt.scatter(TE_wav_sma[i],TE_sma[i])
+#for i in range(1):
+#    plt.scatter(TE_wav_sav[i],TE_r_squared[i])
 #plt.show()
 
 dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
 
 plot_fontsize = 15
 te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_sma, TE_wav_sma, "TE", "b",TE_weights_sma, TE_file)
-
+#te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav, TE_sav, TE_wav_sav, "TE", "r",TE_weights_sav, TE_file)
 
 tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_sma, TM_wav_sma, "TM", "g",TM_weights_sma, TM_file)
 handles, labels = plt.gca().get_legend_handles_labels()
@@ -218,119 +213,81 @@ plt.legend(by_label.values(), by_label.keys())
 tm_mean.index = pd.to_numeric(tm_mean.index, errors='coerce')
 te_mean.index = pd.to_numeric(te_mean.index, errors='coerce')
 
-wav = np.arange(910, 980, 5)
-wav2 = np.arange(915, 985, 5)
+start_wavelength = 920
+end_wavelength = 940
+filtered_te_mean = te_mean[(te_mean.index >= 920) & (te_mean.index <= 940)]
 
-if average:
-    te_mean.index = pd.to_numeric(te_mean.index, errors='coerce')
+max_value = filtered_te_mean.max()
 
-    # Drop rows where the index could not be converted to a number (i.e., NaN values)
-    te_mean = te_mean.dropna()
-
-    # Filter the rows where the index is between 930 and 950
-
-    avg_loss = []
-    for i in range(len(wav)):
-
-        filtered_series = te_mean[(te_mean.index >= wav[i]) & (te_mean.index <= wav2[i])]
-
-        # Calculate the mean of the filtered Series
-        average_value = filtered_series.mean()
-
-        avg_loss.append(round(average_value,2))
-    print(avg_loss)
-
-# Plot of the data obtained from using the average method above
+print("Maximum value in the range 920-940 nm:", round(max_value,2))
 
 
-c1 = 'k'
-c2 = 'b'
+filtered_te_mean = te_mean[(te_mean.index >= 925) & (te_mean.index <= 935)]
 
-plt.plot(te_mean.index, te_mean.values, color=c1, label = 'TE with threshold alpha: ' + '(' + str(alpha_threshold_low) + ':' + str(alpha_threshold_high) + ') ' +  'Rsq :' + str(r_squared_threshold))
-plt.fill_between(te_mean.index, te_mean.values - te_std.values, te_mean.values + te_std.values, color=c1, alpha=0.2)
-plt.plot(te_mean.index, te_mean.values + te_std.values, linestyle='--', color=c1, alpha=0.2)
-plt.plot(te_mean.index, te_mean.values - te_std.values, linestyle='--', color=c1, alpha=0.2)
+max_value = filtered_te_mean.max()
 
-plt.xlabel('Wavelength (nm)', fontsize=plot_fontsize)
-plt.ylabel('Propagation loss (dB/cm)', fontsize=plot_fontsize)
+print("Maximum value in the range 925-935 nm:", round(max_value,2))
 
-plt.xticks(fontsize=plot_fontsize)
-plt.yticks(fontsize=plot_fontsize)
-#plt.legend()
-plt.show()
+
+Loss920_940_1 = [0,0,0,0,0,0,86.92,93.6,83.15,85.12,93.78,87.15]
+Loss925_935_1 = [0,0,0,0,0,0,86.92,93.6,83.15,85.12,93.78,87.15] #No data below 30mW.
+
+Loss920_940_2 = [57.73,50.8,42.15,57.93,60.66,63.98,43.51,47.91,48.13,49.85,57.18,55.97]
+Loss925_935_2 = [57.22,44.74,42.15,48.97,48.18,52.08,43.2,47.79,48.13,49.85,49.3,52.19]
+
+Loss920_940_3 = [42.17,12.87,10.39,23.09,34.82,30.69,47.78,62.68,56.12,91.3,45.87,54.58]
+Loss925_935_3 = [42.14,12.27,10.39,23.09,34.82,25.76,44.97,58.91,50.16,91.3,43.18,50.27]
+
+def average_lists(*lists):
+    averages = []
+    for values in zip(*lists):
+        filtered_values = [v for v in values if v != 0]  # Filter out zero values
+        if filtered_values:  # Check if there are non-zero values
+            averages.append(sum(filtered_values) / len(filtered_values))
+        else:
+            averages.append(0)  # Handle case where all values are zero
+    return averages
+
+# Averaging the corresponding entries
+average_Loss920_940 = average_lists(Loss920_940_1, Loss920_940_2, Loss920_940_3)
+average_Loss925_935 = average_lists(Loss925_935_1, Loss925_935_2, Loss925_935_3)
+
 
 #Plot of the data obtained from using the average method above
-power = np.arange(10,90,10)
+power = [5,10,12.5,15,20,25,30,40,50,60,70,80]
 
-alpha_920_940_1 = [53.56,72.83,70.8,72.54,70.95,73.21,70.88,68.32]
-alpha_925_935_1 = [60.2,79.11,75.9,80.36,79.49,85.34,76.58,78.23]
-
-alpha_920_940_2 = [40.56,47.62,41.5,41.93,47.19,45.04,50.24,50.58]
-alpha_925_935_2 = [42.29,45.75,41.64,40.66,48.7,45.6,49.09,48.36]
-
-averages_920_940 = [(a + b) / 2 for a, b in zip(alpha_920_940_1, alpha_920_940_2)]
-averages_925_935 = [(a + b) / 2 for a, b in zip(alpha_925_935_1, alpha_925_935_2)]
-plt.scatter(power, alpha_920_940_1, marker='*', color='r', s=150)
-plt.scatter(power, alpha_920_940_2, marker='s', color='r', s=150)
-plt.scatter(power, alpha_925_935_1, marker='*', color='k', s=150)
-plt.scatter(power, alpha_925_935_2, marker='s', color='k', s=150)
-plt.scatter(power,averages_920_940,marker='v',color='b',s=150)
-plt.scatter(power,averages_925_935,marker='o',color='b',s=150)
+plt.scatter(power[6:], Loss920_940_1[6:], marker='*', color='r', s=150)
+plt.scatter(power, Loss920_940_2, marker='s', color='g', s=150)
+plt.scatter(power, Loss920_940_3, marker='d', color='b', s=150)
+#plt.scatter(power[6:], Loss925_935_1[6:], marker='*', color='k', s=150)
+#plt.scatter(power, Loss925_935_2, marker='s', color='k', s=150)
+#plt.scatter(power, Loss925_935_3, marker='d', color='k', s=150)
+plt.plot(power,average_Loss920_940,color='k')
+plt.scatter(power,average_Loss920_940,marker='v',color='k',s=300)
+#plt.scatter(power,average_Loss925_935,marker='o',color='b',s=150)
 
 # Custom legend combining both markers
 legend_elements = [
     (Line2D([0], [0], marker='*', color='r', linestyle='None', markersize=10),
-     Line2D([0], [0], marker='s', color='r', linestyle='None', markersize=10)),
-    (Line2D([0], [0], marker='*', color='k', linestyle='None', markersize=10),
-     Line2D([0], [0], marker='s', color='k', linestyle='None', markersize=10)),
-    (Line2D([0], [0], marker='v', color='b', linestyle='None', markersize=10),
-     Line2D([0], [0], marker='o', color='b', linestyle='None', markersize=10))
+     Line2D([0], [0], marker='s', color='g', linestyle='None', markersize=10),
+     Line2D([0], [0], marker='d', color='b', linestyle='None', markersize=10)),
+#    (Line2D([0], [0], marker='*', color='k', linestyle='None', markersize=10),
+#    Line2D([0], [0], marker='s', color='k', linestyle='None', markersize=10),
+#     Line2D([0], [0], marker='d', color='k', linestyle='None', markersize=10)),
+    (Line2D([0], [0], marker='v', color='k', linestyle='-', markersize=10))
+#     Line2D([0], [0], marker='o', color='b', linestyle='None', markersize=10))
 ]
 
-labels = ['Avg. loss 920-940 nm', 'Avg. loss 925-935 nm','Avg. red and black']
+labels = ['Avg. loss 920-940 nm','Average of measurements']
 
 # Creating the legend
 plt.legend(legend_elements, labels, handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=14,
            bbox_to_anchor=(0, 1.5), loc='upper left')
 plt.xlabel('Power [mW]', fontsize=18)
-plt.ylabel('Propagation loss [dB/cm]', fontsize=18)
+plt.ylabel('Loss [dB/cm]', fontsize=18)
 plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
 
 plt.tight_layout()
 
 plt.show()
-
-#plot the 910-915, 915-920 averages.
-    loss_80mW = [71.07, 63.21, 51.35, 56.24, 54.42, 53.26, 47.42, 43.97, 39.22, 37.09, 41.09, 41.46, 42.87, 40.35]
-    loss_70mW = [62.59, 61.0, 54.97, 54.33, 47.53, 49.93, 44.02, 43.53, 38.52, 35.79, 40.38, 40.56, 42.37, 40.84]
-    loss_60mW = [64.17, 61.56, 48.91, 52.74, 52.21, 51.88, 46.04, 42.32, 37.24, 35.76, 38.96, 40.45, 42.83, 42.3]
-    loss_50mW = [64.29, 62.95, 54.37, 55.56, 48.68, 49.26, 45.74, 44.82, 36.56, 36.13, 39.22, 41.19, 39.31, 40.04]
-    loss_40mW = [64.83, 59.83, 55.69, 60.27, 54.1, 51.63, 45.65, 43.88, 37.26, 37.6, 39.45, 41.4, 40.06, 40.96]
-    loss_30mW = [69.94, 60.78, 54.32, 48.46, 51.89, 46.95, 46.32, 42.83, 37.96, 37.85, 39.62, 40.85, 36.08, 34.67]
-    loss_25mW = [51.19, 38.97, 44.64, 41.1, 34.66, 37.19, 34.62, 37.48, 37.86, 31.96, 30.84, 32.1, 33.81, 35.39]
-    loss_20mW = [53.0, 49.0, 49.48, 48.0, 49.0, 47.87, 43.42, 40.12, 43.41, 41.17, 42.59, 37.75, 29.32, 28.2]
-    loss_15mW = [28.76, 24.28, 22.13, 22.0, 22.69, 26.8, 28.63, 29.95, 33.73, 38.31, 40.48, 38.35, 27.01, 27.09]
-    loss_12_5mW = [19.77, 18.02, 18.06, 19.96, 20.65, 21.0, 21.36, 25.73, 28.15, 27.75, 29.85, 33.18, 27.61, 20.75]
-    loss_10mW = [34.56, 29.01, 19.19, 17.88, 23.21, 27.07, 27.75, 25.69, 18.54, 17.0, 22.05, 24.02, 25.96, 19.35]
-
-    plt.plot(wav, loss_80mW,label='80mW')
-    plt.plot(wav, loss_70mW,label='70mW')
-    plt.plot(wav, loss_60mW,label='60mW')
-    plt.plot(wav, loss_50mW,label='50mW')
-    plt.plot(wav, loss_40mW,label='40mW')
-    plt.plot(wav, loss_30mW,label='30mW')
-#    plt.plot(wav, loss_25mW,label='25mW')
-#    plt.plot(wav, loss_20mW,label='20mW')
-#    plt.plot(wav, loss_15mW,label='15mW')
-#    plt.plot(wav, loss_12_5mW,label='12.5mW')
-#    plt.plot(wav, loss_10mW,label='10mW')
-#    plt.legend()
-    plt.xlabel('Wavelength [nm]', fontsize=18)
-    plt.ylabel('Loss [dB/cm]', fontsize=18)
-    plt.xticks(fontsize=15)
-    plt.yticks(fontsize=15)
-
-    plt.tight_layout()
-
-    plt.show()
