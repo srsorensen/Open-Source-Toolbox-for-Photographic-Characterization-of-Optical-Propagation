@@ -1,0 +1,59 @@
+import h5py
+import matplotlib.pyplot as plt
+
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Figures/'
+
+file1 = '1350nm'
+file2 = '1525nm'
+file3 = '1933nm'
+
+# Define file paths for the three different .h5 files
+file_paths = [directory + file1 + "_TM.h5",
+              directory + file2 + "_TM.h5",
+              directory + file3 + "_TM.h5"]
+
+file_path_TE = [directory + file1 + "_TE.h5",
+              directory + file2 + "_TE.h5",
+              directory + file3 + "_TE.h5"]
+
+# Define offsets for staggering the plots on the y-axis
+y_offsets = [0, 0.15, 0.4]  # Adjust these values as needed
+
+# Plot the data from each file
+plt.figure(figsize=(10, 6))
+colors = ['blue', 'green', 'red']  # Colors for each dataset
+
+for i, file_path in enumerate(file_paths):
+    with h5py.File(file_path, "r") as hf:
+        wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
+        tm_loss = hf["Average TM loss (dB per cm)"][:]  # Load average TM loss dataset
+        # Normalize the data to its maximum value
+        tm_loss_normalized = tm_loss / tm_loss.max()
+        # Apply the y-offset to stagger the plots
+        tm_loss_staggered = tm_loss_normalized + y_offsets[i]
+        file_label = [file1,file2,file3]
+        # Plot the staggered data
+        plt.plot(wavelengths, tm_loss_staggered, linewidth=3, color=colors[i])
+
+for i, file_path in enumerate(file_path_TE):
+    with h5py.File(file_path, "r") as hf:
+        wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
+        te_loss = hf["Average TE loss (dB per cm)"][:]  # Load average TM loss dataset
+        # Normalize the data to its maximum value
+        te_loss_normalized = te_loss / te_loss.max()
+        # Apply the y-offset to stagger the plots
+        te_loss_staggered = te_loss_normalized + y_offsets[i]
+        file_label = [file1,file2,file3]
+        # Plot the staggered data
+        plt.plot(wavelengths, te_loss_staggered, linewidth=3, linestyle='--', color=colors[i])
+
+# Customize the plot
+plt.xlim(910,980)
+plt.xlabel('Wavelength [nm]',fontsize='20')
+plt.ylabel('Loss [Arbitrary units]',fontsize='20')
+plt.xticks(fontsize='16')
+plt.yticks(fontsize='16')
+#plt.title('Wavelength vs. Staggered Average TM Loss')
+#plt.legend()
+plt.grid(True)
+plt.show()
