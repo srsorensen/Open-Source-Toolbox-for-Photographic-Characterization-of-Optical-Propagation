@@ -1,40 +1,87 @@
 import h5py
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
-directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Figures/'
+directory = 'C:/Users/au617007/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Figures/'
 
 file1 = '1350nm'
 file2 = '1525nm'
 file3 = '1933nm'
 
 # Define file paths for the three different .h5 files
-file_paths = [directory + file1 + "_TM.h5",
-              directory + file2 + "_TM.h5",
-              directory + file3 + "_TM.h5"]
+file_paths_TM = [directory + file1 + "_TM.h5",
+                 directory + file2 + "_TM.h5",
+                 directory + file3 + "_TM.h5"]
 
-file_path_TE = [directory + file1 + "_TE.h5",
-              directory + file2 + "_TE.h5",
-              directory + file3 + "_TE.h5"]
+file_paths_TE = [directory + file1 + "_TE.h5",
+                 directory + file2 + "_TE.h5",
+                 directory + file3 + "_TE.h5"]
 
 # Define offsets for staggering the plots on the y-axis
 y_offsets = [0, 0.15, 0.4]  # Adjust these values as needed
+
+# Initialize lists to accumulate the losses for averaging
+interp_tm_losses = []
+interp_te_losses = []
 
 # Plot the data from each file
 plt.figure(figsize=(10, 6))
 colors = ['blue', 'green', 'red']  # Colors for each dataset
 
-for i, file_path in enumerate(file_paths):
-    with h5py.File(file_path, "r") as hf:
-        wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
-        tm_loss = hf["Average TM loss (dB per cm)"][:]  # Load average TM loss dataset
+# Define a common wavelength range for interpolation
+common_wavelengths = np.linspace(910, 980, 500)  # Adjust as needed
+
+# Process TM files
+for i, file_path_TM in enumerate(file_paths_TM):
+    with h5py.File(file_path_TM, "r") as hf_TM:
+        tm_wavelengths = hf_TM["wavelengths"][:]  # Load TM wavelengths dataset
+        tm_loss = hf_TM["Average TM loss (dB per cm)"][:]  # Load average TM loss dataset
+
         # Normalize the data to its maximum value
         tm_loss_normalized = tm_loss / tm_loss.max()
-        # Apply the y-offset to stagger the plots
-        tm_loss_staggered = tm_loss_normalized + y_offsets[i]
-        file_label = [file1,file2,file3]
-        # Plot the staggered data
-        plt.plot(wavelengths, tm_loss_staggered, linewidth=3, color=colors[i])
 
+        # Interpolate TM losses to the common wavelength range
+        interp_tm = interp1d(tm_wavelengths, tm_loss_normalized, kind='linear', bounds_error=False, fill_value=np.nan)
+        interp_tm_loss = interp_tm(common_wavelengths)
+        interp_tm_losses.append(interp_tm_loss)
+
+        # Apply the y-offset to stagger the plots
+        tm_loss_staggered = interp_tm_loss + y_offsets[i]
+
+        # Plot the staggered TM data
+        plt.plot(common_wavelengths, tm_loss_staggered, linewidth=3, color=colors[i], label=f'TM {file1 if i == 0 else file2 if i == 1 else file3}')
+
+# Process TE files
+for i, file_path_TE in enumerate(file_paths_TE):
+    with h5py.File(file_path_TE, "r") as hf_TE:
+        te_wavelengths = hf_TE["wavelengths"][:]  # Load TE wavelengths dataset
+        te_loss = hf_TE["Average TE loss (dB per cm)"][:]  # Load average TE loss dataset
+
+        # Normalize the data to its maximum value
+        te_loss_normalized = te_loss / te_loss.max()
+
+        # Interpolate TE losses to the common wavelength range
+        interp_te = interp1d(te_wavelengths, te_loss_normalized, kind='linear', bounds_error=False, fill_value=np.nan)
+        interp_te_loss = interp_te(common_wavelengths)
+        interp_te_losses.append(interp_te_loss)
+
+        # Apply the y-offset to stagger the plots
+        te_loss_staggered = interp_te_loss + y_offsets[i]
+
+        # Plot the staggered TE data
+        plt.plot(common_wavelengths, te_loss_staggered, linewidth=3, linestyle='--', color=colors[i], label=f'TE {file1 if i == 0 else file2 if i == 1 else file3}')
+plt.show()
+# Compute the average of all the interpolated TM and TE losses separately
+avg_tm_loss = np.nanmean(interp_tm_losses, axis=0)
+avg_te_loss = np.nanmean(interp_te_losses, axis=0)
+plt.figure(figsize=(10, 6))
+avg_tm_loss = avg_tm_loss + 0
+avg_te_loss = avg_te_loss + 0.15
+# Plot the averaged TM and TE losses (without any offsets)
+plt.plot(common_wavelengths, avg_tm_loss, linewidth=3, color='r', label='Average TM')
+plt.plot(common_wavelengths, avg_te_loss, linewidth=3, color='g', label='Average TE')
+file_path_TE = file_path_TE = [directory + 'AlGaAs_1400nm' + "_TE.h5"]
 for i, file_path in enumerate(file_path_TE):
     with h5py.File(file_path, "r") as hf:
         wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
@@ -42,18 +89,18 @@ for i, file_path in enumerate(file_path_TE):
         # Normalize the data to its maximum value
         te_loss_normalized = te_loss / te_loss.max()
         # Apply the y-offset to stagger the plots
-        te_loss_staggered = te_loss_normalized + y_offsets[i]
-        file_label = [file1,file2,file3]
+        te_loss_staggered = te_loss_normalized + 0.25
+        file_label = 'AlGaAs_1400nm'
         # Plot the staggered data
-        plt.plot(wavelengths, te_loss_staggered, linewidth=3, linestyle='--', color=colors[i])
+        plt.plot(wavelengths, te_loss_staggered, linewidth=3, color='b',label=file_label)
 
 # Customize the plot
-plt.xlim(910,980)
-plt.xlabel('Wavelength [nm]',fontsize='20')
-plt.ylabel('Loss [Arbitrary units]',fontsize='20')
-plt.xticks(fontsize='16')
-plt.yticks(fontsize='16')
-#plt.title('Wavelength vs. Staggered Average TM Loss')
-#plt.legend()
+plt.xlim(910, 980)
+plt.xlabel('Wavelength [nm]', fontsize=20)
+plt.ylabel('Loss [Arbitrary units]', fontsize=20)
+plt.xticks(fontsize=20)
+plt.yticks(fontsize=20)
+#plt.legend(fontsize=14)
 plt.grid(True)
+plt.tight_layout()
 plt.show()
