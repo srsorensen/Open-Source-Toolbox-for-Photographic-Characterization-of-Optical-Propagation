@@ -1,63 +1,103 @@
 import h5py
 import matplotlib.pyplot as plt
+import numpy as np
 
 directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Figures/'
 
-file1 = '1350nm'
-file2 = '1525nm'
-file3 = '1933nm'
-file4 = '1400nm'
+file1 = '1250'
+file2 = '1350'
+file3 = '1400'
+file4 = '1450'
+file5 = '1500'
+file6 = '1600'
+
+file7 = '1350nm'
+file8 = '1525nm'
+file9 = '1933nm'
+
 # Define file paths for the three different .h5 files
-file_paths = [directory + file1 + "_TM.h5",
-              directory + file2 + "_TM.h5",
-              directory + file3 + "_TM.h5"]
+file_paths_ST_TM = [directory + file1 + "_TM.h5",
+                    directory + file2 + "_TM.h5",
+                    directory + file3 + "_TM.h5",
+                    directory + file4 + "_TM.h5",
+                    directory + file5 + "_TM.h5",
+                    directory + file6 + "_TM.h5"]
 
-file_path_TE = [directory + file1 + "_TE.h5",
-              directory + file2 + "_TE.h5",
-              directory + file3 + "_TE.h5",
-                directory + file4 + "_TE.h5"]
+file_paths_ST_TE = [directory + file1 + "_TE.h5",
+                    directory + file2 + "_TE.h5",
+                    directory + file6 + "_TE.h5"]
 
-# Define offsets for staggering the plots on the y-axis
-y_offsets = [0, 0.15, 0.4,0.5]  # Adjust these values as needed
+file_paths_GST_TM = [directory + file7 + "_TM.h5",
+                    directory + file8 + "_TM.h5",
+                    directory + file9 + "_TM.h5"]
 
-# Plot the data from each file
-plt.figure(figsize=(10, 6))
-colors = ['blue', 'green', 'red', 'k']  # Colors for each dataset
+file_paths_GST_TE = [directory + file7 + "_TE.h5",
+                    directory + file8 + "_TE.h5",
+                    directory + file9 + "_TE.h5"]
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.interpolate import interp1d
+
+# Function to load, interpolate, average, and normalize the data from file paths
+def load_average_normalize_and_plot_individual(file_paths, dataset_key, plot_individual=False):
+    all_wavelengths = []
+    all_loss = []
+
+    # Load all the wavelength and loss data
+    for file_path in file_paths:
+        with h5py.File(file_path, "r") as hf:
+            wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
+            loss = hf[dataset_key][:]  # Load the corresponding loss dataset
+            all_wavelengths.append(wavelengths)
+            all_loss.append(loss)
+
+            # Plot individual data if requested
+            if plot_individual:
+                normalized_loss = loss / loss.max()
+                plot_data(wavelengths, normalized_loss, f'Individual Plot: {file_path.split("/")[-1]}')
+
+    # Determine a common wavelength grid by taking the union of all wavelengths
+    common_wavelengths = np.linspace(min(min(w) for w in all_wavelengths),
+                                     max(max(w) for w in all_wavelengths),
+                                     num=1000)  # Using 1000 points for interpolation
+
+    # Interpolate all loss datasets to the common wavelength grid
+    interpolated_loss = []
+    for wavelengths, loss in zip(all_wavelengths, all_loss):
+        interp_func = interp1d(wavelengths, loss, bounds_error=False, fill_value="extrapolate")
+        interpolated_loss.append(interp_func(common_wavelengths))
+
+    # Compute the average of the interpolated loss
+    avg_loss = np.mean(interpolated_loss, axis=0)
+
+    # Normalize the averaged loss
+    avg_loss_normalized = avg_loss / avg_loss.max()
+
+    return common_wavelengths, avg_loss_normalized
+
+# Function to plot the data
+def plot_data(wavelengths, loss, title, linestyle='-'):
+    plt.figure(figsize=(10, 6))
+    plt.plot(wavelengths, loss, linewidth=3, linestyle=linestyle, color='blue')
+    plt.axvline(933)
+    plt.xlabel('Wavelength [nm]', fontsize=20)
+    plt.ylabel('Loss [Arbitrary units]', fontsize=20)
+    plt.title(title, fontsize=22)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.grid(True)
+    plt.show()
 
 
-for i, file_path in enumerate(file_paths):
-    with h5py.File(file_path, "r") as hf:
-        wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
-        tm_loss = hf["Average TM loss (dB per cm)"][:]  # Load average TM loss dataset
-        # Normalize the data to its maximum value
-        tm_loss_normalized = tm_loss / tm_loss.max()
-        # Apply the y-offset to stagger the plots
-        tm_loss_staggered = tm_loss_normalized + y_offsets[i]
-        file_label = [file1,file2,file3]
-        # Plot the staggered data
-        plt.plot(wavelengths, tm_loss_staggered, linewidth=3, color=colors[i])
+# Process each file path group and plot individual files
+wavelengths_st_tm, avg_loss_st_tm = load_average_normalize_and_plot_individual(file_paths_ST_TM, "Average TM loss (dB per cm)")
+wavelengths_st_te, avg_loss_st_te = load_average_normalize_and_plot_individual(file_paths_ST_TE, "Average TE loss (dB per cm)")
+wavelengths_gst_tm, avg_loss_gst_tm = load_average_normalize_and_plot_individual(file_paths_GST_TM, "Average TM loss (dB per cm)")
+wavelengths_gst_te, avg_loss_gst_te = load_average_normalize_and_plot_individual(file_paths_GST_TE, "Average TE loss (dB per cm)")
 
-
-for i, file_path in enumerate(file_path_TE):
-    with h5py.File(file_path, "r") as hf:
-        wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
-        te_loss = hf["Average TE loss (dB per cm)"][:]  # Load average TM loss dataset
-        # Normalize the data to its maximum value
-        te_loss_normalized = te_loss / te_loss.max()
-        # Apply the y-offset to stagger the plots
-        te_loss_staggered = te_loss_normalized + y_offsets[i]
-        file_label = [file1,file2,file3]
-        # Plot the staggered data
-        plt.plot(wavelengths, te_loss_staggered, linewidth=3, color=colors[i])
-
-# Customize the plot
-plt.xlim(910,980)
-plt.xlabel('Wavelength [nm]',fontsize='20')
-plt.ylabel('Loss [Arbitrary units]',fontsize='20')
-plt.xticks(fontsize='20')
-plt.yticks(fontsize='20')
-#plt.title('Wavelength vs. Staggered Average TM Loss')
-#plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# Plot the averaged data for each group
+plot_data(wavelengths_st_tm, avg_loss_st_tm, "ST - TM Loss (Averaged and Normalized)")
+plot_data(wavelengths_st_te, avg_loss_st_te, "ST - TE Loss (Averaged and Normalized)", linestyle='--')
+plot_data(wavelengths_gst_tm, avg_loss_gst_tm, "GST - TM Loss (Averaged and Normalized)")
+plot_data(wavelengths_gst_te, avg_loss_gst_te, "GST - TE Loss (Averaged and Normalized)", linestyle='--')
