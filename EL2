@@ -1,293 +1,501 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Dec  5 11:39:55 2023
-
-@author: frede
-"""
-
 import numpy as np
-import h5py
-import os
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter
-from itertools import zip_longest
-import pandas as pd
-from matplotlib.lines import Line2D
-#import klepto
-from matplotlib.legend_handler import HandlerTuple
+import h5py
+from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
 
-def weighted_mean(values, weights):
-    if len(values) == 1:
-        return values[0], weights[0]
-    if type(values) == list:
-        values = np.array(values)
-        weights = np.array(weights)
-    weights = 1 / weights
-    weighted_mean = np.sum(values * weights) / np.sum(weights)
-    weighted_std = np.sqrt(np.sum(weights * (values - weighted_mean) ** 2) / np.sum(weights))
-    return weighted_mean, weighted_std
+# Define the fit functions with an offset
+def Gaussian(wav, A, center, sigma, offset):
+    return A * np.exp(-(wav - center)**2 / (2 * sigma**2)) + offset
 
+def Lorentzian(wav, A, center, gamma, offset):
+    return A / ((wav - center)**2 + gamma**2) + offset
 
-def plot_polarization_data(wavelengths, data, data_wav, polarization_label, color, weights,file):
-    if len(data) > 0:
-        dataframe = pd.DataFrame(columns=wavelengths)
-        dataframe_weights = pd.DataFrame(columns=wavelengths)
-        for i in range(len(data)):
-            series = pd.Series(data[i], index=data_wav[i])
-            dataframe = pd.concat([dataframe, series.to_frame().T], ignore_index=True)
-        for i in range(len(weights)):
-            series = pd.Series(weights[i], index=data_wav[i])
-            dataframe_weights = pd.concat([dataframe_weights, series.to_frame().T], ignore_index=True)
-        dataframe = dataframe.dropna(axis=1)
-        dataframe_weights = dataframe_weights.dropna(axis=1)
-        for i in range(len(dataframe)):
-            alpha_data = dataframe.iloc[i, :]
-            wav_data = dataframe.columns.values
-            alpha_data = pd.to_numeric(alpha_data, errors='coerce')
-            wav_data = pd.to_numeric(wav_data, errors='coerce')
-        #    plt.plot(wav_data, alpha_data, f"{color}-", label=f"{polarization_label}")
-        #    plt.ylim(20,90)
-            #plt.legend()
-        #    plt.title(file[i])
-        #plt.ylabel('Propagation loss (dB/cm)')
-        #plt.xlabel('Wavelength (nm)')
-        #plt.show()
-        weighted_average_sweep = []
-        weighted_std_sweep = []
-        for i in range((dataframe.shape[1])):
-            column = dataframe.iloc[:, i]
-            col_weights = dataframe_weights.iloc[:, i]
-            mean, std = weighted_mean(column, col_weights)
-            weighted_average_sweep.append(mean)
-            weighted_std_sweep.append(std)
+def Exponential(wav, A, B, offset):
+    return A * np.exp(-wav / B) + offset
 
-        weighted_average_sweep = pd.Series(weighted_average_sweep, index=dataframe_weights.columns)
-        weighted_std_sweep = pd.Series(weighted_std_sweep, index=dataframe_weights.columns)
-        return dataframe, weighted_average_sweep, weighted_std_sweep
-    else:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+# Function to load, interpolate, average, and normalize the data
+def load_average_normalize_and_plot_individual(file_paths, dataset_key, plot_individual=False):
+    all_wavelengths = []
+    all_loss = []
 
-def simple_moving_average(data, window_size):
-    weights = np.ones(window_size) / window_size
-    sma = np.convolve(data, weights, mode='valid')
-    return sma
+    # Load all the wavelength and loss data
+    for file_path in file_paths:
+        with h5py.File(file_path, "r") as hf:
+            wavelengths = hf["wavelengths"][:]  # Load wavelengths dataset
+            loss = hf[dataset_key][:]  # Load the corresponding loss dataset
+            all_wavelengths.append(wavelengths)
+            all_loss.append(loss)
 
-def load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,window_size):
+            # Plot individual data if requested
+            if plot_individual:
+                normalized_loss = loss / loss.max()
+                plot_data(wavelengths, normalized_loss, f'Individual Plot: {file_path.split("/")[-1]}')
 
-    TE_raw = []
-    TM_raw = []
+    # Determine a common wavelength grid by taking the union of all wavelengths
+    common_wavelengths = np.linspace(min(min(w) for w in all_wavelengths),
+                                     max(max(w) for w in all_wavelengths),
+                                     num=1000)  # Using 1000 points for interpolation
 
-    TE_file = []
-    TM_file = []
+    # Interpolate all loss datasets to the common wavelength grid
+    interpolated_loss = []
+    for wavelengths, loss in zip(all_wavelengths, all_loss):
+        interp_func = interp1d(wavelengths, loss, bounds_error=False, fill_value="extrapolate")
+        interpolated_loss.append(interp_func(common_wavelengths))
 
-    TE_sma = []
-    TM_sma = []
+    # Compute the average of the interpolated loss
+    avg_loss = np.mean(interpolated_loss, axis=0)
 
-    TE_sav = []
-    TM_sav = []
+    # Normalize the averaged loss
+    avg_loss_normalized = avg_loss / avg_loss.max()
 
-    TE_weights_sma = []
-    TM_weights_sma = []
+    return common_wavelengths, avg_loss_normalized
 
-    TE_weights_sav = []
-    TM_weights_sav = []
+# Function to plot the data
+def plot_data(wavelengths, loss, title, linestyle='-'):
+    plt.figure(figsize=(10, 6))
+    plt.plot(wavelengths, loss, linewidth=3, linestyle=linestyle, color='blue')
+#    plt.axvline(933)
+    plt.xlabel('Wavelength [nm]', fontsize=20)
+    plt.ylabel('Loss [Arbitrary units]', fontsize=20)
+    plt.title(title, fontsize=22)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.grid(True)
+    plt.show()
 
 
-    TE_wav_sma = []
-    TM_wav_sma = []
+def multiple_plot(x, y1, y2, y3, title, label1, label2, label3, fwhm_gauss, fwhm_lorentz, center_gauss, center_lorentz,
+                  linestyle='-', linestyle2='--'):
+    plt.figure(figsize=(10, 6))
 
-    TE_wav_sav = []
-    TM_wav_sav = []
+    # Plot the original data and the fits
+    plt.plot(x, y1, label=label1, color='black', linestyle=linestyle)
+    plt.plot(x, y2, linewidth=3, linestyle=linestyle2, color='red', label=label2)
+    #plt.plot(x, y3, linewidth=3, linestyle=linestyle2, color='blue', label=label3)
 
-    TE_r_squared = []
-    TM_r_squared = []
+    # Calculate the midpoint for FWHM placement
+    y_max_gauss = max(y2)
+    y_max_lorentz = max(y3)
 
-    TE_left_indent = []
-    TM_left_indent = []
+    y_mid_gauss = (y_max_gauss * 0.06 + y_max_gauss * 0.1) / 2
+    y_mid_lorentz = (y_max_lorentz * 0.06 + y_max_lorentz * 0.1) / 2
 
-    TE_sum_width = []
-    TM_sum_width = []
+    # Plot horizontal lines for FWHM
+    #plt.axhline(y=y_mid_gauss, color='blue', linestyle=':')
+    #plt.axhline(y=y_mid_lorentz, color='red', linestyle=':')
 
-    for file in os.listdir(directory):
-        if contains.lower() in file.lower() and f_ending.lower() in file.lower():
-            #print(file)
-            hf = h5py.File(directory + file, 'r')
-            wav_nm = np.array(hf.get('wavelength'))
-            weights = np.array(hf.get('alpha_variance'))
-            left_indent = np.array(hf.get('left_indent'))
-            sum_width = np.array(hf.get('sum_width'))
-            r_squared = np.array(hf.get('r_squared'))
-            alphas = np.array(hf.get('alpha'))
-            if threshold:
-                indices_above_threshold = np.where(alphas > alpha_threshold_high)[0]
-                alphas = alphas[alphas <= alpha_threshold_high]
-                wav_nm = np.delete(wav_nm, indices_above_threshold)
-                weights = np.delete(weights, indices_above_threshold)
-                left_indent = np.delete(left_indent, indices_above_threshold)
-                sum_width = np.delete(sum_width, indices_above_threshold)
-                r_squared = np.delete(r_squared, indices_above_threshold)
+    print('gauss fwhm', round(fwhm_gauss,1))
+    print('center gaus', round(center_gauss,1))
+    #print('lorentz fwhm', round(fwhm_lorentz,1))
+    #print('center lorentz', round(center_lorentz,1))
+    # Place text boxes
+    #plt.text(center_gauss+25, y_mid_gauss + 0.04, f'FWHM Gaussian: {fwhm_gauss:.2f} nm',
+    #         fontsize=12, ha='center', va='bottom', color='blue', bbox=dict(facecolor='white', alpha=0.5))
+    #plt.text(center_lorentz+25, y_mid_lorentz + 0.03, f'FWHM Lorentzian: {fwhm_lorentz:.2f} nm',
+    #         fontsize=12, ha='center', va='top', color='red', bbox=dict(facecolor='white', alpha=0.5))
 
-                indices_below_threshold = np.where(alphas < alpha_threshold_low)[0]
-                alphas = alphas[alphas >= alpha_threshold_low]
-                wav_nm = np.delete(wav_nm, indices_below_threshold)
-                weights = np.delete(weights, indices_below_threshold)
-                left_indent = np.delete(left_indent, indices_below_threshold)
-                sum_width = np.delete(sum_width, indices_below_threshold)
-                r_squared = np.delete(r_squared, indices_below_threshold)
+    # Set labels and title
+    plt.xlabel('Wavelength [nm]', fontsize=20)
+    plt.ylabel('Loss [Arbitrary units]', fontsize=20)
+    #plt.title(title, fontsize=22)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    #plt.legend(fontsize=16)
+    plt.grid(True)
 
-                indices_above_threshold = np.where(r_squared < r_squared_threshold)[0]
-                alphas = np.delete(alphas,indices_above_threshold)
-                wav_nm = np.delete(wav_nm, indices_above_threshold)
-                weights = np.delete(weights, indices_above_threshold)
-                left_indent = np.delete(left_indent, indices_above_threshold)
-                sum_width = np.delete(sum_width, indices_above_threshold)
-                r_squared = np.delete(r_squared, indices_above_threshold)
-                #plt.scatter(wav_nm,alphas)
-                #plt.show()
-            sma = simple_moving_average(alphas,window_size)
-            weights_sma = simple_moving_average(weights,window_size)
-            wav_sma = wav_nm[(window_size - 1) // 2 : -(window_size // 2)]
-
-            y_savgol = savgol_filter(alphas.tolist(), 501, 1, mode="nearest")
-
-            if "TE" in file:
-                TE_file.append(file)
-                TE_raw.append(list(alphas))
-                TE_sma.append(list(sma))
-                TE_weights_sma.append(weights_sma)
-                TE_wav_sma.append(list(wav_sma))
-
-                TE_sav.append(list(y_savgol))
-                TE_weights_sav.append(weights)
-                TE_wav_sav.append(([float(x.decode()) for x in wav_nm]))
-
-                TE_r_squared.append(r_squared)
-                TE_left_indent.append(left_indent)
-                TE_sum_width.append(sum_width)
-
-            else:
-                TM_file.append(file)
-                TM_raw.append(list(alphas))
-                TM_sma.append(list(sma))
-                TM_weights_sma.append(weights_sma)
-                TM_wav_sma.append(list(wav_sma))
-
-                TM_sav.append(list(y_savgol))
-                TM_weights_sav.append(weights)
-                TM_wav_sav.append(([float(x.decode()) for x in wav_nm]))
-
-                TM_r_squared.append(r_squared)
-                TM_left_indent.append(left_indent)
-                TM_sum_width.append(sum_width)
-            hf.close()
-    return TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width
-
-directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Power_Data/'
-contains = '3_ST3_width_1350nm_2.5mW'
-f_ending = '.h5'
-threshold = True
-alpha_threshold_high = 90
-alpha_threshold_low = 0
-r_squared_threshold = 0.0
-
-#window_size = list(range(10,110,20))
-#for i in window_size:
-TE_file, TE_raw, TE_sma, TE_weights_sma, TE_wav_sma, TE_sav, TE_weights_sav, TE_wav_sav, TE_r_squared, TE_left_indent, TE_sum_width, TM_file, TM_raw, TM_sma, TM_weights_sma, TM_wav_sma, TM_sav, TM_weights_sav, TM_wav_sav, TM_r_squared, TM_left_indent, TE_sum_width  = load_data(directory,contains,f_ending,threshold,alpha_threshold_high,alpha_threshold_low,r_squared_threshold,20)
-
-#for i in range(1):
-#    plt.scatter(TE_wav_sav[i],TE_r_squared[i])
-#plt.show()
-
-dataframe_wav = np.round(np.arange(910, 980 + 0.001, 0.1), 1)
-
-plot_fontsize = 15
-te_dataframe, te_mean, te_std = plot_polarization_data(dataframe_wav, TE_sma, TE_wav_sma, "TE", "b",TE_weights_sma, TE_file)
-#te_dataframe1, te_mean1, te_std1 = plot_polarization_data(dataframe_wav, TE_sav, TE_wav_sav, "TE", "r",TE_weights_sav, TE_file)
-
-tm_dataframe, tm_mean, tm_std = plot_polarization_data(dataframe_wav, TM_sma, TM_wav_sma, "TM", "g",TM_weights_sma, TM_file)
-handles, labels = plt.gca().get_legend_handles_labels()
-by_label = dict(zip(labels, handles))
-plt.legend(by_label.values(), by_label.keys())
+    # Show plot
+    plt.show()
 
 
-tm_mean.index = pd.to_numeric(tm_mean.index, errors='coerce')
-te_mean.index = pd.to_numeric(te_mean.index, errors='coerce')
+# Combined fit using Lorentzian
+def combined_fit_lorentz(wav, A_lorentz, center_lorentz, gamma_lorentz, offset_lorentz,
+                         A_exp, B_exp, offset_exp):
+    return (Lorentzian(wav, A_lorentz, center_lorentz, gamma_lorentz, offset_lorentz) +
+            Exponential(wav, A_exp, B_exp, offset_exp))
 
-start_wavelength = 920
-end_wavelength = 940
-filtered_te_mean = te_mean[(te_mean.index >= 920) & (te_mean.index <= 940)]
+# Combined fit using Gaussian
+def combined_fit_gauss(wav, A_gauss, center_gauss, sigma_gauss, offset_gauss,
+                       A_exp, B_exp, offset_exp):
+    return (Gaussian(wav, A_gauss, center_gauss, sigma_gauss, offset_gauss) +
+            Exponential(wav, A_exp, B_exp, offset_exp))
 
-max_value = filtered_te_mean.max()
-
-print("Maximum value in the range 920-940 nm:", round(max_value,2))
-
-
-filtered_te_mean = te_mean[(te_mean.index >= 925) & (te_mean.index <= 935)]
-
-max_value = filtered_te_mean.max()
-
-print("Maximum value in the range 925-935 nm:", round(max_value,2))
-
-
-Loss920_940_1 = [0,0,0,0,0,0,86.92,93.6,83.15,85.12,93.78,87.15]
-Loss925_935_1 = [0,0,0,0,0,0,86.92,93.6,83.15,85.12,93.78,87.15] #No data below 30mW.
-
-Loss920_940_2 = [57.73,50.8,42.15,57.93,60.66,63.98,43.51,47.91,48.13,49.85,57.18,55.97]
-Loss925_935_2 = [57.22,44.74,42.15,48.97,48.18,52.08,43.2,47.79,48.13,49.85,49.3,52.19]
-
-Loss920_940_3 = [42.17,12.87,10.39,23.09,34.82,30.69,47.78,62.68,56.12,91.3,45.87,54.58]
-Loss925_935_3 = [42.14,12.27,10.39,23.09,34.82,25.76,44.97,58.91,50.16,91.3,43.18,50.27]
-
-def average_lists(*lists):
-    averages = []
-    for values in zip(*lists):
-        filtered_values = [v for v in values if v != 0]  # Filter out zero values
-        if filtered_values:  # Check if there are non-zero values
-            averages.append(sum(filtered_values) / len(filtered_values))
-        else:
-            averages.append(0)  # Handle case where all values are zero
-    return averages
-
-# Averaging the corresponding entries
-average_Loss920_940 = average_lists(Loss920_940_1, Loss920_940_2, Loss920_940_3)
-average_Loss925_935 = average_lists(Loss925_935_1, Loss925_935_2, Loss925_935_3)
+def fit_exp(type,x,y,p0):
+    # Fit Exponential
+    popt_exp, _ = curve_fit(type, x, y,
+                            p0=p0, bounds=([0, 0, 0], [np.inf, np.inf, np.inf]),
+                            maxfev=5000)
+    exp_fit = Exponential(wavelengths_st_tm, *popt_exp)
+    return popt_exp,exp_fit
 
 
-#Plot of the data obtained from using the average method above
-power = [5,10,12.5,15,20,25,30,40,50,60,70,80]
 
-plt.scatter(power[6:], Loss920_940_1[6:], marker='*', color='r', s=150)
-plt.scatter(power, Loss920_940_2, marker='s', color='g', s=150)
-plt.scatter(power, Loss920_940_3, marker='d', color='b', s=150)
-#plt.scatter(power[6:], Loss925_935_1[6:], marker='*', color='k', s=150)
-#plt.scatter(power, Loss925_935_2, marker='s', color='k', s=150)
-#plt.scatter(power, Loss925_935_3, marker='d', color='k', s=150)
-plt.plot(power,average_Loss920_940,color='k')
-plt.scatter(power,average_Loss920_940,marker='v',color='k',s=300)
-#plt.scatter(power,average_Loss925_935,marker='o',color='b',s=150)
 
-# Custom legend combining both markers
-legend_elements = [
-    (Line2D([0], [0], marker='*', color='r', linestyle='None', markersize=10),
-     Line2D([0], [0], marker='s', color='g', linestyle='None', markersize=10),
-     Line2D([0], [0], marker='d', color='b', linestyle='None', markersize=10)),
-#    (Line2D([0], [0], marker='*', color='k', linestyle='None', markersize=10),
-#    Line2D([0], [0], marker='s', color='k', linestyle='None', markersize=10),
-#     Line2D([0], [0], marker='d', color='k', linestyle='None', markersize=10)),
-    (Line2D([0], [0], marker='v', color='k', linestyle='-', markersize=10))
-#     Line2D([0], [0], marker='o', color='b', linestyle='None', markersize=10))
-]
 
-labels = ['Avg. loss 920-940 nm','Average of measurements']
+plot_height_fwhm = True
 
-# Creating the legend
-plt.legend(legend_elements, labels, handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=14,
-           bbox_to_anchor=(0, 1.5), loc='upper left')
-plt.xlabel('Power [mW]', fontsize=18)
-plt.ylabel('Loss [dB/cm]', fontsize=18)
-plt.xticks(fontsize=15)
-plt.yticks(fontsize=15)
+if plot_height_fwhm:
+    # Data
+    power = np.arange(10, 90, 10)
+    height_gauss = [0.07, 0.12, 0.17, 0.24, 0.24, 0.29, 0.19, 0.18]
+    FWHM_gauss = [2.3, 4.4, 5.9, 6.2, 5.9, 6.0, 6.5, 6.9]
+    center_gauss = [930.1,930.3,931.3,928.2,929,930.1,928.5,930.3]
 
-plt.tight_layout()
+    power_custom_2 = [20, 40, 70, 80]
+    height_gauss_2 = [0.1, 0.2, 0.13, 0.16]
+    FWHM_gauss_2 = [1.5, 5.7, 6.3, 5.2]
+    center_gauss_2 = [934.9, 937.2, 937.4, 939.6]
+
+    power_custom_3 = [40, 50, 80]
+    height_gauss_3 = [0.12, 0.14, 0.16]
+    FWHM_gauss_3 = [5.8, 7.7, 11.4]
+    center_gauss_3 = [937, 937.7, 939.6]
+
+    power_custom_avg = [10, 20, 30, 40, 50, 70, 80]
+    avg_height = np.array([0.07,0.12,0.17,0.19,0.19,0.16,0.17])
+    avg_FWHM = np.array([2.3, 3.0, 5.9, 5.9, 6.8, 6.4, 6.1])
+
+    std_height = [0.01,0.01,0.01,0.06,0.07,0.04,0.01]
+    std_FWHM = [1.3,2.1,1.3,0.3,1.3,0.14,1.2]
+
+    print('center gauss average ', round(np.mean(center_gauss),1), round(np.std(center_gauss),1))
+
+    # Create the figure and the first axis
+    fig, ax1 = plt.subplots()
+
+    # Plot for height_gauss
+    ax1.set_xlabel('Power [mW]', fontsize=14)
+    ax1.set_ylabel('Height of Gaussian [arb. units]', color='tab:blue', fontsize=14)
+    #ax1.plot(power, height_gauss, color='tab:blue', marker='v', label='Height of Gaussian',linewidth=2, markersize=10)
+    #ax1.plot(power_custom_2, height_gauss_2, color='tab:blue', marker='*', label='Height of Gaussian', linewidth=2, markersize=10)
+    #ax1.plot(power_custom_3, height_gauss_3, color='tab:blue', marker='x', label='Height of Gaussian', linewidth=2, markersize=10)
+    ax1.plot(power_custom_avg, avg_height, color='tab:blue', marker = 'x', linestyle = '--', label='Height of Gaussian', linewidth=3,markersize=10)
+    ax1.fill_between(power_custom_avg, avg_height - std_height, avg_height + std_height, color='tab:blue',alpha=0.2)
+    # Set tick label size for ax1 (left y-axis and x-axis)
+    ax1.set_ylim(0,0.5)
+    ax1.tick_params(axis='x', labelsize=12)
+    ax1.tick_params(axis='y', labelsize=12, labelcolor='tab:blue')
+
+    # Create a second y-axis that shares the same x-axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('FWHM of Gaussian [nm]', color='tab:red', fontsize=14)
+    #ax2.plot(power, FWHM_gauss, color='tab:red', marker='v', label='FWHM of Gaussian',linewidth=2,markersize=10)
+    #ax2.plot(power_custom_2, FWHM_gauss_2, color='tab:red', marker='*', label='FWHM of Gaussian', linewidth=2, markersize=10)
+    #ax2.plot(power_custom_3, FWHM_gauss_3, color='tab:red', marker='x', label='FWHM of Gaussian', linewidth=2, markersize=10)
+    ax2.plot(power_custom_avg, avg_FWHM, color='tab:red', marker='x', linestyle=':', label='FWHM of Gaussian', linewidth=3,markersize=10)
+    ax2.fill_between(power_custom_avg, avg_FWHM - std_FWHM, avg_FWHM + std_FWHM, color='tab:red', alpha=0.2)
+    # Set tick label size for ax2 (right y-axis)
+    ax2.tick_params(axis='y', labelsize=12, labelcolor='tab:red')
+    # Add a title and show the plot
+    #plt.title('Height and FWHM of Gaussian vs Power', fontsize=16)
+    fig.tight_layout()  # Adjust layout to avoid overlap
+
+    plt.show()
+
+
+
+
+# Define file paths and directories
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Data/'
+#AlGaAs
+file1 = '1250'
+file2 = '1350'
+file3 = '1400'
+file4 = '1450'
+file5 = '1500'
+file6 = '1600'
+
+#GaAs
+#TM
+file7 = '1350nm'
+file8 = '1525nm'
+file9 = '1933nm'
+#TE
+file35 = 'GaAs_1933nm_23'
+
+#AlGaAs Power individual run 3
+file10 = '3_ST3_width_1350nm_80mW'
+file11 = '3_ST3_width_1350nm_70mW'
+file12 = '3_ST3_width_1350nm_60mW'
+file13 = '3_ST3_width_1350nm_50mW'
+file14 = '3_ST3_width_1350nm_40mW'
+
+#AlGaAs Power individual run 1
+file15 = '1_ST3_width_1350nm_80mW'
+file16 = '1_ST3_width_1350nm_70mW'
+file17 = '1_ST3_width_1350nm_60mW'
+file18 = '1_ST3_width_1350nm_50mW'
+file19 = '1_ST3_width_1350nm_40mW'
+file20 = '1_ST3_width_1350nm_30mW'
+file21 = '1_ST3_width_1350nm_20mW'
+file22 = '1_ST3_width_1350nm_10mW'
+
+#AlGaAs Power individual run 2
+file23 = '2_ST3_width_1350nm_80mW'
+file24 = '2_ST3_width_1350nm_70mW'
+file25 = '2_ST3_width_1350nm_60mW'
+file26 = '2_ST3_width_1350nm_50mW'
+file27 = '2_ST3_width_1350nm_40mW'
+file28 = '2_ST3_width_1350nm_30mW'
+file29 = '2_ST3_width_1350nm_20mW'
+file30 = '2_ST3_width_1350nm_10mW'
+
+file31 = 'outlier_removed_1350nm_TE.h5'
+file32 = 'new_1350nm_TM.h5'
+file33 = 'new_1933nm_TM.h5'
+file34 = 'test2.h5'
+
+
+# Define file paths for the three different .h5 files
+file_paths_ST_TM = [directory + file1 + "_TM.h5",
+                    directory + file2 + "_TM.h5",
+                    directory + file3 + "_TM.h5",
+                    #directory + file4 + "_TM.h5",
+                    directory + file5 + "_TM.h5",
+                    directory + file6 + "_TM.h5"]
+
+file_paths_ST_TE = [directory + file1 + "_TE.h5",
+                    directory + file2 + "_TE.h5"]
+#                    directory + file6 + "_TE.h5"]
+
+file_paths_GST_TM = [directory + file7 + "_TM.h5",
+                     directory + file8 + "_TM.h5",
+                     directory + file9 + "_TM.h5"]
+
+file_paths_GST_TE = [directory + file35 + "_TE.h5"]
+
+file_path_power_data_indv =[directory + file15 + "_TE.h5",
+                            directory + file16 + "_TE.h5",
+                            directory + file17 + "_TE.h5",
+                            directory + file18 + "_TE.h5",
+                            directory + file19 + "_TE.h5",
+                            directory + file20 + "_TE.h5",
+                            directory + file21 + "_TE.h5",
+                            directory + file22 + "_TE.h5"]
+
+file_path_power_data_avg = [directory + file23 + "_TE.h5",
+                            directory + file24 + "_TE.h5",
+                            directory + file25 + "_TE.h5",
+                            directory + file26 + "_TE.h5",
+                            directory + file27 + "_TE.h5",
+                            directory + file28 + "_TE.h5",
+                            directory + file29 + "_TE.h5",
+                            directory + file30 + "_TE.h5"]
+
+test = [directory + file6 + '_TE.h5']
+
+
+# Load, average, and normalize the data for each group
+wavelengths_st_tm, avg_loss_st_tm = load_average_normalize_and_plot_individual(file_paths_ST_TM,
+                                                                               "Average TM loss (dB per cm)")
+wavelengths_st_te, avg_loss_st_te = load_average_normalize_and_plot_individual(file_paths_ST_TE,
+                                                                               "Average TE loss (dB per cm)")
+
+# Define fitting range
+fit_range = (910, 980)
+
+# Filter data within the fitting range
+mask_st_tm = (wavelengths_st_tm >= fit_range[0]) & (wavelengths_st_tm <= fit_range[1])
+mask_st_te = (wavelengths_st_te >= fit_range[0]) & (wavelengths_st_te <= fit_range[1])
+
+# Filtered data
+wavelengths_st_tm_fit = wavelengths_st_tm[mask_st_tm]
+avg_loss_st_tm_fit = avg_loss_st_tm[mask_st_tm]
+
+wavelengths_st_te_fit = wavelengths_st_te[mask_st_te]
+avg_loss_st_te_fit = avg_loss_st_te[mask_st_te]
+
+popt_exp,exp_fit = fit_exp(Exponential, wavelengths_st_tm_fit, avg_loss_st_tm_fit,[1,1000,0])
+
+# Subtract the Exponential Fit from the data in the range 945-980
+exp_fit_range = Exponential(wavelengths_st_tm, *popt_exp)
+mask_exp_range = (wavelengths_st_tm >= fit_range[0]) & (wavelengths_st_tm <= fit_range[1])
+subtracted_loss_st_tm = avg_loss_st_tm.copy()
+subtracted_loss_st_tm[mask_exp_range] -= exp_fit_range[mask_exp_range]
+subtracted_loss_st_tm[subtracted_loss_st_tm < 0] = 0
+
+
+# Fit Exponential
+popt_exp,exp_fit = fit_exp(Exponential, wavelengths_st_te_fit, avg_loss_st_te_fit,[1,1000,0])
+
+# Subtract the Exponential Fit from the data in the range 945-980
+exp_fit_range = Exponential(wavelengths_st_te, *popt_exp)
+mask_exp_range = (wavelengths_st_te >= fit_range[0]) & (wavelengths_st_te <= fit_range[1])
+subtracted_loss_st_te = avg_loss_st_te.copy()
+subtracted_loss_st_te[mask_exp_range] -= exp_fit_range[mask_exp_range]
+subtracted_loss_st_te[subtracted_loss_st_te < 0] = 0
+
+popt_gauss_tm, _ = curve_fit(Gaussian, wavelengths_st_tm[mask_st_tm], subtracted_loss_st_tm[mask_st_tm],
+                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                             maxfev=5000)
+gauss_fit_tm = Gaussian(wavelengths_st_tm, *popt_gauss_tm)
+
+popt_lorentz_tm, _ = curve_fit(Lorentzian, wavelengths_st_tm[mask_st_tm], subtracted_loss_st_tm[mask_st_tm],
+                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                               maxfev=5000)
+lorentz_fit_tm = Lorentzian(wavelengths_st_tm, *popt_lorentz_tm)
+
+popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
+                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                             maxfev=5000)
+gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
+
+popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
+                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                               maxfev=5000)
+lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
+
+sigma_gauss = popt_gauss_tm[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
+fwhm_gauss_tm = 2.355 * sigma_gauss
+center_gauss_tm = popt_gauss_tm[1]
+height_gauss = popt_gauss_tm[0]
+print('Height Gauss', round(height_gauss,2))
+
+sigma_gauss = popt_gauss_te[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
+fwhm_gauss_te = 2.355 * sigma_gauss
+center_gauss_te = popt_gauss_te[1]
+
+# Lorentzian FWHM calculation
+gamma_lorentz = popt_lorentz_tm[2]  # Extract the gamma (half-width at half maximum) from the Lorentzian fit parameters
+fwhm_lorentz_tm = 2 * gamma_lorentz
+center_lorentz_tm = popt_lorentz_tm[1]
+
+gamma_lorentz = popt_lorentz_te[2]  # Extract the gamma (half-width at half maximum) from the Lorentzian fit parameters
+fwhm_lorentz_te = 2 * gamma_lorentz
+center_lorentz_te = popt_lorentz_te[1]
+
+multiple_plot(wavelengths_st_tm, subtracted_loss_st_tm,gauss_fit_tm,lorentz_fit_tm,'Profile Fits for exponential corrected power data TE (3rd run)','Subtracted data','Gaussian Fit','Lorentzian Fit',fwhm_gauss_tm, fwhm_lorentz_tm, center_gauss_tm, center_lorentz_tm)
+multiple_plot(wavelengths_st_te, subtracted_loss_st_te,gauss_fit_te,lorentz_fit_te,'Profile Fits for exponential corrected power data TE (run 1-3 average)','Subtracted data','Gaussian Fit','Lorentzian Fit',fwhm_gauss_te, fwhm_lorentz_te, center_gauss_te, center_lorentz_te)
+
+
+
+# Fit Gaussian
+popt_gauss, _ = curve_fit(Gaussian, wavelengths_st_tm[mask_exp_range], subtracted_loss_st_tm[mask_exp_range],
+                          p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 980, np.inf, np.inf]),
+                          maxfev=5000)
+gauss_fit = Gaussian(wavelengths_st_tm, *popt_gauss)
+
+# Fit Lorentzian
+popt_lorentz, _ = curve_fit(Lorentzian, wavelengths_st_tm[mask_exp_range], subtracted_loss_st_tm[mask_exp_range],
+                            p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 980, np.inf, np.inf]),
+                            maxfev=5000)
+lorentz_fit = Lorentzian(wavelengths_st_tm, *popt_lorentz)
+
+p0_combined_gauss = [*popt_gauss, *popt_exp]
+bounds_combined_gauss = ([0, 910, 0, 0, 0, 0, 0], [np.inf, 980, np.inf, np.inf, np.inf, np.inf, np.inf])
+popt_combined_gauss, _ = curve_fit(combined_fit_gauss, wavelengths_st_tm, avg_loss_st_tm,
+                                   p0=p0_combined_gauss, bounds=bounds_combined_gauss, maxfev=5000)
+combined_fit_result_gauss = combined_fit_gauss(wavelengths_st_tm, *popt_combined_gauss)
+
+
+p0_combined_lorentz = [*popt_lorentz, *popt_exp]
+bounds_combined_lorentz = ([0, 910, 0, 0, 0, 0, 0], [np.inf, 980, np.inf, np.inf, np.inf, np.inf, np.inf])
+popt_combined_lorentz, _ = curve_fit(combined_fit_lorentz, wavelengths_st_tm, avg_loss_st_tm,
+                                     p0=p0_combined_lorentz, bounds=bounds_combined_lorentz, maxfev=5000)
+combined_fit_result_lorentz = combined_fit_lorentz(wavelengths_st_tm, *popt_combined_lorentz)
+
+# Plotting for ST TM
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Plot the data for ST TM
+ax.plot(wavelengths_st_tm, avg_loss_st_tm, 'o', color='black', label='Data')
+
+# Plot individual fits for ST TM
+ax.plot(wavelengths_st_tm, gauss_fit, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss[1]:.2f}$)', linewidth=3)
+ax.plot(wavelengths_st_tm, lorentz_fit, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz[1]:.2f}$)', linewidth=3)
+#ax.plot(wavelengths_st_tm, exp_fit, '--', color='green', label='Exponential Fit', linewidth=3)
+
+# Plot combined fits for ST TM
+ax.plot(wavelengths_st_tm, combined_fit_result_gauss, '-', color='purple', label='Combined Fit (Gaussian)', linewidth=3)
+ax.plot(wavelengths_st_tm, combined_fit_result_lorentz, '-', color='orange', label='Combined Fit (Lorentzian)', linewidth=3)
+
+# Configure plot
+ax.set_xlabel('Wavelength [nm]')
+ax.set_ylabel('Loss [Arbitrary units]')
+ax.set_xlim(910, 980)
+ax.set_ylim(0.4, 1.02)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+ax.legend(fontsize=13)
+#plt.title('3rd run fit',fontsize=16)
+ax.grid(True)
 
 plt.show()
+
+# Plotting for ST TE
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Plot the data for ST TE
+ax.plot(wavelengths_st_te, avg_loss_st_te, 'o', color='black', label='Data')
+
+# Subtract the exponential fit for ST TE
+exp_fit_te = Exponential(wavelengths_st_te, *popt_exp)
+subtracted_loss_te = avg_loss_st_te.copy()
+subtracted_loss_te[mask_st_te] -= exp_fit_te[mask_st_te]
+subtracted_loss_te[subtracted_loss_te < 0] = 0
+
+# Fit Gaussian to subtracted data for ST TE
+popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_te[mask_st_te],
+                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                             maxfev=5000)
+gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
+
+# Fit Lorentzian to subtracted data for ST TE
+popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_te[mask_st_te],
+                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                               maxfev=5000)
+lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
+
+# Combined fit using Gaussian for ST TE
+combined_fit_gauss_te = combined_fit_gauss(wavelengths_st_te, *popt_gauss_te, *popt_exp)
+
+# Combined fit using Lorentzian for ST TE
+combined_fit_lorentz_te = combined_fit_lorentz(wavelengths_st_te, *popt_lorentz_te, *popt_exp)
+
+# Plot individual fits and combined fits for ST TE
+ax.plot(wavelengths_st_te, gauss_fit_te, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss_te[1]:.2f}$)', linewidth=3)
+ax.plot(wavelengths_st_te, lorentz_fit_te, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz_te[1]:.2f}$)', linewidth=3)
+#ax.plot(wavelengths_st_te, exp_fit_te, '--', color='green', label='Exponential Fit', linewidth=3)
+
+ax.plot(wavelengths_st_te, combined_fit_gauss_te, '-', color='purple', label='Combined Fit (Gaussian)', linewidth=3)
+ax.plot(wavelengths_st_te, combined_fit_lorentz_te, '-', color='orange', label='Combined Fit (Lorentzian)', linewidth=3)
+
+# Configure plot
+ax.set_xlabel('Wavelength [nm]')
+ax.set_ylabel('Loss [Arbitrary units]')
+ax.set_xlim(910, 980)
+ax.set_ylim(0.4, 1.02)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+ax.legend(fontsize=13)
+#plt.title('Average run 1-3 fit',fontsize=16)
+ax.grid(True)
+
+plt.show()
+
+# Subtract the Exponential Fit from the data in the defined range
+subtracted_loss_st_te = avg_loss_st_te.copy()
+subtracted_loss_st_te[mask_st_te] -= exp_fit_te[mask_st_te]
+subtracted_loss_st_te[subtracted_loss_st_te < 0] = 0  # Remove negative values
+
+# Fit Gaussian to subtracted data for ST TE
+popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
+                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                             maxfev=5000)
+gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
+
+# Fit Lorentzian to subtracted data for ST TE
+popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
+                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                               maxfev=5000)
+lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
+
+# Plot the subtracted data with the fitted Gaussian and Lorentzian profiles
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Plot the subtracted data for ST TE
+ax.plot(wavelengths_st_te, subtracted_loss_st_te, 'o', color='black', label='Subtracted Data')
+
+# Plot the fitted Gaussian and Lorentzian profiles
+ax.plot(wavelengths_st_te, gauss_fit_te, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss_te[1]:.2f}$)', linewidth=3)
+ax.plot(wavelengths_st_te, lorentz_fit_te, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz_te[1]:.2f}$)', linewidth=3)
