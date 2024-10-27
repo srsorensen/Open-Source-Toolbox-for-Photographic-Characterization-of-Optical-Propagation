@@ -5,11 +5,10 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
 # Define the fit functions with an offset
-def Gaussian(wav, A, center, sigma, offset):
-    return A * np.exp(-(wav - center)**2 / (2 * sigma**2)) + offset
+def Gaussian(wavelength, amp, center, sigma, offset=0):
+    return offset + amp * np.exp(-0.5 * ((wavelength - center) / sigma) ** 2)
 
-def Lorentzian(wav, A, center, gamma, offset):
-    return A / ((wav - center)**2 + gamma**2) + offset
+
 
 def Exponential(wav, A, B, offset):
     return A * np.exp(-wav / B) + offset
@@ -65,54 +64,31 @@ def plot_data(wavelengths, loss, title, linestyle='-'):
     plt.show()
 
 
-def multiple_plot(x, y1, y2, y3, title, label1, label2, label3, fwhm_gauss, fwhm_lorentz, center_gauss, center_lorentz,
-                  linestyle='-', linestyle2='--'):
+def multiple_plot(wav, avg_loss, exp_fit, gaussian,linestyle='-', linestyle2='dotted'):
     plt.figure(figsize=(10, 6))
 
     # Plot the original data and the fits
-    plt.plot(x, y1, label=label1, color='black', linestyle=linestyle)
-    plt.plot(x, y2, linewidth=3, linestyle=linestyle2, color='red', label=label2)
-    #plt.plot(x, y3, linewidth=3, linestyle=linestyle2, color='blue', label=label3)
+    plt.plot(wav, avg_loss, color='black', linestyle=linestyle,linewidth=3)
+    plt.plot(wav, exp_fit, linewidth=3, linestyle=linestyle2, color='red')
 
-    # Calculate the midpoint for FWHM placement
-    y_max_gauss = max(y2)
-    y_max_lorentz = max(y3)
+    plt.plot(wav[170:400], gaussian[170:400], linewidth=3, linestyle=linestyle, color='blue')
+    #170:400 TE
+    #120:440 TM
 
-    y_mid_gauss = (y_max_gauss * 0.06 + y_max_gauss * 0.1) / 2
-    y_mid_lorentz = (y_max_lorentz * 0.06 + y_max_lorentz * 0.1) / 2
 
-    # Plot horizontal lines for FWHM
-    #plt.axhline(y=y_mid_gauss, color='blue', linestyle=':')
-    #plt.axhline(y=y_mid_lorentz, color='red', linestyle=':')
-
-    print('gauss fwhm', round(fwhm_gauss,1))
-    print('center gaus', round(center_gauss,1))
-    #print('lorentz fwhm', round(fwhm_lorentz,1))
-    #print('center lorentz', round(center_lorentz,1))
-    # Place text boxes
-    #plt.text(center_gauss+25, y_mid_gauss + 0.04, f'FWHM Gaussian: {fwhm_gauss:.2f} nm',
-    #         fontsize=12, ha='center', va='bottom', color='blue', bbox=dict(facecolor='white', alpha=0.5))
-    #plt.text(center_lorentz+25, y_mid_lorentz + 0.03, f'FWHM Lorentzian: {fwhm_lorentz:.2f} nm',
-    #         fontsize=12, ha='center', va='top', color='red', bbox=dict(facecolor='white', alpha=0.5))
-
-    # Set labels and title
-    plt.xlabel('Wavelength [nm]', fontsize=20)
-    plt.ylabel('Loss [Arbitrary units]', fontsize=20)
-    #plt.title(title, fontsize=22)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
-    #plt.legend(fontsize=16)
+    # Set labels
+    plt.xlabel('Wavelength [nm]', fontsize=24)
+    plt.ylabel('Loss [Arbitrary units]', fontsize=24)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.ylim(0.45,1.05)
+    plt.xlim(910,980)
     plt.grid(True)
-
+    plt.tight_layout()
     # Show plot
     plt.show()
 
 
-# Combined fit using Lorentzian
-def combined_fit_lorentz(wav, A_lorentz, center_lorentz, gamma_lorentz, offset_lorentz,
-                         A_exp, B_exp, offset_exp):
-    return (Lorentzian(wav, A_lorentz, center_lorentz, gamma_lorentz, offset_lorentz) +
-            Exponential(wav, A_exp, B_exp, offset_exp))
 
 # Combined fit using Gaussian
 def combined_fit_gauss(wav, A_gauss, center_gauss, sigma_gauss, offset_gauss,
@@ -132,7 +108,7 @@ def fit_exp(type,x,y,p0):
 
 
 
-plot_height_fwhm = True
+plot_height_fwhm = False
 
 if plot_height_fwhm:
     # Data
@@ -196,7 +172,7 @@ if plot_height_fwhm:
 
 
 # Define file paths and directories
-directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/Data/'
+directory = 'C:/Users/Simon/PycharmProjects/Open-Source-Toolbox-for-Rapid-and-Accurate-Photographic-Characterization-of-Optical-Propagation/temp/'
 #AlGaAs
 file1 = '1250'
 file2 = '1350'
@@ -292,7 +268,7 @@ wavelengths_st_te, avg_loss_st_te = load_average_normalize_and_plot_individual(f
                                                                                "Average TE loss (dB per cm)")
 
 # Define fitting range
-fit_range = (910, 980)
+fit_range = (910, 960)
 
 # Filter data within the fitting range
 mask_st_tm = (wavelengths_st_tm >= fit_range[0]) & (wavelengths_st_tm <= fit_range[1])
@@ -305,197 +281,101 @@ avg_loss_st_tm_fit = avg_loss_st_tm[mask_st_tm]
 wavelengths_st_te_fit = wavelengths_st_te[mask_st_te]
 avg_loss_st_te_fit = avg_loss_st_te[mask_st_te]
 
-popt_exp,exp_fit = fit_exp(Exponential, wavelengths_st_tm_fit, avg_loss_st_tm_fit,[1,1000,0])
 
-# Subtract the Exponential Fit from the data in the range 945-980
-exp_fit_range = Exponential(wavelengths_st_tm, *popt_exp)
-mask_exp_range = (wavelengths_st_tm >= fit_range[0]) & (wavelengths_st_tm <= fit_range[1])
-subtracted_loss_st_tm = avg_loss_st_tm.copy()
-subtracted_loss_st_tm[mask_exp_range] -= exp_fit_range[mask_exp_range]
-subtracted_loss_st_tm[subtracted_loss_st_tm < 0] = 0
+#Fit exponential TE and TM
+popt_exp_tm,exp_fit_tm = fit_exp(Exponential, wavelengths_st_tm_fit, avg_loss_st_tm_fit,[1,1000,0])
+popt_exp_te,exp_fit_te = fit_exp(Exponential, wavelengths_st_te_fit, avg_loss_st_te_fit,[1,1000,0])
 
+plot = False
 
-# Fit Exponential
-popt_exp,exp_fit = fit_exp(Exponential, wavelengths_st_te_fit, avg_loss_st_te_fit,[1,1000,0])
+if plot:
+    # Subtract the Exponential Fit from the data in the range 945-980
+    exp_fit_range = Exponential(wavelengths_st_tm, *popt_exp_tm)
+    mask_exp_range = (wavelengths_st_tm >= fit_range[0]) & (wavelengths_st_tm <= fit_range[1])
+    subtracted_loss_st_tm = avg_loss_st_tm.copy()
+    subtracted_loss_st_tm[mask_exp_range] -= exp_fit_range[mask_exp_range]
+    subtracted_loss_st_tm[subtracted_loss_st_tm < 0] = 0
 
-# Subtract the Exponential Fit from the data in the range 945-980
-exp_fit_range = Exponential(wavelengths_st_te, *popt_exp)
-mask_exp_range = (wavelengths_st_te >= fit_range[0]) & (wavelengths_st_te <= fit_range[1])
-subtracted_loss_st_te = avg_loss_st_te.copy()
-subtracted_loss_st_te[mask_exp_range] -= exp_fit_range[mask_exp_range]
-subtracted_loss_st_te[subtracted_loss_st_te < 0] = 0
+    # Fit Exponential
+    popt_exp, exp_fit = fit_exp(Exponential, wavelengths_st_te_fit, avg_loss_st_te_fit, [1, 1000, 0])
 
-popt_gauss_tm, _ = curve_fit(Gaussian, wavelengths_st_tm[mask_st_tm], subtracted_loss_st_tm[mask_st_tm],
-                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                             maxfev=5000)
-gauss_fit_tm = Gaussian(wavelengths_st_tm, *popt_gauss_tm)
+    # Subtract the Exponential Fit from the data in the range 945-980
+    exp_fit_range = Exponential(wavelengths_st_te, *popt_exp_te)
+    mask_exp_range = (wavelengths_st_te >= fit_range[0]) & (wavelengths_st_te <= fit_range[1])
+    subtracted_loss_st_te = avg_loss_st_te.copy()
+    subtracted_loss_st_te[mask_exp_range] -= exp_fit_range[mask_exp_range]
+    subtracted_loss_st_te[subtracted_loss_st_te < 0] = 0
 
-popt_lorentz_tm, _ = curve_fit(Lorentzian, wavelengths_st_tm[mask_st_tm], subtracted_loss_st_tm[mask_st_tm],
-                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                               maxfev=5000)
-lorentz_fit_tm = Lorentzian(wavelengths_st_tm, *popt_lorentz_tm)
+    popt_gauss_tm, _ = curve_fit(Gaussian, wavelengths_st_tm[mask_st_tm], subtracted_loss_st_tm[mask_st_tm],
+                                 p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                                 maxfev=5000)
+    gauss_fit_tm = Gaussian(wavelengths_st_tm, *popt_gauss_tm)
 
-popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
-                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                             maxfev=5000)
-gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
+    popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
+                                 p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
+                                 maxfev=5000)
+    gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
 
-popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
-                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                               maxfev=5000)
-lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
+    sigma_gauss = popt_gauss_tm[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
+    fwhm_gauss_tm = 2.355 * sigma_gauss
+    center_gauss_tm = popt_gauss_tm[1]
+    height_gauss = popt_gauss_tm[0]
+    print('Height Gauss', round(height_gauss, 2))
 
-sigma_gauss = popt_gauss_tm[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
-fwhm_gauss_tm = 2.355 * sigma_gauss
-center_gauss_tm = popt_gauss_tm[1]
-height_gauss = popt_gauss_tm[0]
-print('Height Gauss', round(height_gauss,2))
+    sigma_gauss = popt_gauss_te[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
+    fwhm_gauss_te = 2.355 * sigma_gauss
+    center_gauss_te = popt_gauss_te[1]
 
-sigma_gauss = popt_gauss_te[2]  # Extract the sigma (standard deviation) from the Gaussian fit parameters
-fwhm_gauss_te = 2.355 * sigma_gauss
-center_gauss_te = popt_gauss_te[1]
-
-# Lorentzian FWHM calculation
-gamma_lorentz = popt_lorentz_tm[2]  # Extract the gamma (half-width at half maximum) from the Lorentzian fit parameters
-fwhm_lorentz_tm = 2 * gamma_lorentz
-center_lorentz_tm = popt_lorentz_tm[1]
-
-gamma_lorentz = popt_lorentz_te[2]  # Extract the gamma (half-width at half maximum) from the Lorentzian fit parameters
-fwhm_lorentz_te = 2 * gamma_lorentz
-center_lorentz_te = popt_lorentz_te[1]
-
-multiple_plot(wavelengths_st_tm, subtracted_loss_st_tm,gauss_fit_tm,lorentz_fit_tm,'Profile Fits for exponential corrected power data TE (3rd run)','Subtracted data','Gaussian Fit','Lorentzian Fit',fwhm_gauss_tm, fwhm_lorentz_tm, center_gauss_tm, center_lorentz_tm)
-multiple_plot(wavelengths_st_te, subtracted_loss_st_te,gauss_fit_te,lorentz_fit_te,'Profile Fits for exponential corrected power data TE (run 1-3 average)','Subtracted data','Gaussian Fit','Lorentzian Fit',fwhm_gauss_te, fwhm_lorentz_te, center_gauss_te, center_lorentz_te)
+    # Lorentzian FWHM calculation
+    multiple_plot(wavelengths_st_tm, subtracted_loss_st_tm, gauss_fit_tm,
+                  'Profile Fits for exponential corrected power data TE (3rd run)', 'Subtracted data', 'Gaussian Fit',
+                  fwhm_gauss_tm, center_gauss_tm)
+    multiple_plot(wavelengths_st_te, subtracted_loss_st_te, gauss_fit_te,
+                  'Profile Fits for exponential corrected power data TE (run 1-3 average)', 'Subtracted data',
+                  'Gaussian Fit', fwhm_gauss_te, center_gauss_te)
 
 
+def Gaussian_with_exponential_offset(wavelength, amp, center, sigma):
+    return Gaussian(wavelength, amp, center, sigma) + Exponential(wavelength, *popt_exp_tm)
 
-# Fit Gaussian
-popt_gauss, _ = curve_fit(Gaussian, wavelengths_st_tm[mask_exp_range], subtracted_loss_st_tm[mask_exp_range],
-                          p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 980, np.inf, np.inf]),
-                          maxfev=5000)
-gauss_fit = Gaussian(wavelengths_st_tm, *popt_gauss)
+# Initial parameters for Gaussian with offset (TM data)
+p0_gauss_with_offset_tm = [1, 933, 5]  # Initial guess for Gaussian [amplitude, center, sigma]
+bounds_gauss_with_offset_tm = ([0, 910, 0], [np.inf, 940, np.inf])
 
-# Fit Lorentzian
-popt_lorentz, _ = curve_fit(Lorentzian, wavelengths_st_tm[mask_exp_range], subtracted_loss_st_tm[mask_exp_range],
-                            p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 980, np.inf, np.inf]),
-                            maxfev=5000)
-lorentz_fit = Lorentzian(wavelengths_st_tm, *popt_lorentz)
+# Fit Gaussian with exponential offset to TM data
+popt_gauss_with_offset_tm, _ = curve_fit(
+    Gaussian_with_exponential_offset,
+    wavelengths_st_tm,
+    avg_loss_st_tm,
+    p0=p0_gauss_with_offset_tm,
+    bounds=bounds_gauss_with_offset_tm,
+    maxfev=5000
+)
+# Generate the combined fit result for plotting
+combined_fit_tm = Gaussian_with_exponential_offset(wavelengths_st_tm, *popt_gauss_with_offset_tm)
 
-p0_combined_gauss = [*popt_gauss, *popt_exp]
-bounds_combined_gauss = ([0, 910, 0, 0, 0, 0, 0], [np.inf, 980, np.inf, np.inf, np.inf, np.inf, np.inf])
-popt_combined_gauss, _ = curve_fit(combined_fit_gauss, wavelengths_st_tm, avg_loss_st_tm,
-                                   p0=p0_combined_gauss, bounds=bounds_combined_gauss, maxfev=5000)
-combined_fit_result_gauss = combined_fit_gauss(wavelengths_st_tm, *popt_combined_gauss)
+# Define Gaussian with Exponential Offset for TE data
+def Gaussian_with_exponential_offset_te(wavelength, amp, center, sigma):
+    return Gaussian(wavelength, amp, center, sigma) + Exponential(wavelength, *popt_exp_te)
 
+# Initial parameters for Gaussian with offset (TE data)
+p0_gauss_with_offset_te = [1, 933, 5]  # Initial guess for Gaussian [amplitude, center, sigma]
+bounds_gauss_with_offset_te = ([0, 910, 0], [np.inf, 940, np.inf])
 
-p0_combined_lorentz = [*popt_lorentz, *popt_exp]
-bounds_combined_lorentz = ([0, 910, 0, 0, 0, 0, 0], [np.inf, 980, np.inf, np.inf, np.inf, np.inf, np.inf])
-popt_combined_lorentz, _ = curve_fit(combined_fit_lorentz, wavelengths_st_tm, avg_loss_st_tm,
-                                     p0=p0_combined_lorentz, bounds=bounds_combined_lorentz, maxfev=5000)
-combined_fit_result_lorentz = combined_fit_lorentz(wavelengths_st_tm, *popt_combined_lorentz)
+# Fit Gaussian with exponential offset to TE data
+popt_gauss_with_offset_te, _ = curve_fit(
+    Gaussian_with_exponential_offset_te,
+    wavelengths_st_te,
+    avg_loss_st_te,
+    p0=p0_gauss_with_offset_te,
+    bounds=bounds_gauss_with_offset_te,
+    maxfev=5000
+)
+# Generate the combined fit result for plotting
+combined_fit_te = Gaussian_with_exponential_offset_te(wavelengths_st_te, *popt_gauss_with_offset_te)
 
-# Plotting for ST TM
-fig, ax = plt.subplots(figsize=(10, 6))
+# Plotting for TM data
+multiple_plot(wavelengths_st_tm, avg_loss_st_tm, exp_fit_tm, combined_fit_tm)
 
-# Plot the data for ST TM
-ax.plot(wavelengths_st_tm, avg_loss_st_tm, 'o', color='black', label='Data')
-
-# Plot individual fits for ST TM
-ax.plot(wavelengths_st_tm, gauss_fit, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss[1]:.2f}$)', linewidth=3)
-ax.plot(wavelengths_st_tm, lorentz_fit, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz[1]:.2f}$)', linewidth=3)
-#ax.plot(wavelengths_st_tm, exp_fit, '--', color='green', label='Exponential Fit', linewidth=3)
-
-# Plot combined fits for ST TM
-ax.plot(wavelengths_st_tm, combined_fit_result_gauss, '-', color='purple', label='Combined Fit (Gaussian)', linewidth=3)
-ax.plot(wavelengths_st_tm, combined_fit_result_lorentz, '-', color='orange', label='Combined Fit (Lorentzian)', linewidth=3)
-
-# Configure plot
-ax.set_xlabel('Wavelength [nm]')
-ax.set_ylabel('Loss [Arbitrary units]')
-ax.set_xlim(910, 980)
-ax.set_ylim(0.4, 1.02)
-plt.xticks(fontsize=16)
-plt.yticks(fontsize=16)
-ax.legend(fontsize=13)
-#plt.title('3rd run fit',fontsize=16)
-ax.grid(True)
-
-plt.show()
-
-# Plotting for ST TE
-fig, ax = plt.subplots(figsize=(10, 6))
-
-# Plot the data for ST TE
-ax.plot(wavelengths_st_te, avg_loss_st_te, 'o', color='black', label='Data')
-
-# Subtract the exponential fit for ST TE
-exp_fit_te = Exponential(wavelengths_st_te, *popt_exp)
-subtracted_loss_te = avg_loss_st_te.copy()
-subtracted_loss_te[mask_st_te] -= exp_fit_te[mask_st_te]
-subtracted_loss_te[subtracted_loss_te < 0] = 0
-
-# Fit Gaussian to subtracted data for ST TE
-popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_te[mask_st_te],
-                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                             maxfev=5000)
-gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
-
-# Fit Lorentzian to subtracted data for ST TE
-popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_te[mask_st_te],
-                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                               maxfev=5000)
-lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
-
-# Combined fit using Gaussian for ST TE
-combined_fit_gauss_te = combined_fit_gauss(wavelengths_st_te, *popt_gauss_te, *popt_exp)
-
-# Combined fit using Lorentzian for ST TE
-combined_fit_lorentz_te = combined_fit_lorentz(wavelengths_st_te, *popt_lorentz_te, *popt_exp)
-
-# Plot individual fits and combined fits for ST TE
-ax.plot(wavelengths_st_te, gauss_fit_te, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss_te[1]:.2f}$)', linewidth=3)
-ax.plot(wavelengths_st_te, lorentz_fit_te, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz_te[1]:.2f}$)', linewidth=3)
-#ax.plot(wavelengths_st_te, exp_fit_te, '--', color='green', label='Exponential Fit', linewidth=3)
-
-ax.plot(wavelengths_st_te, combined_fit_gauss_te, '-', color='purple', label='Combined Fit (Gaussian)', linewidth=3)
-ax.plot(wavelengths_st_te, combined_fit_lorentz_te, '-', color='orange', label='Combined Fit (Lorentzian)', linewidth=3)
-
-# Configure plot
-ax.set_xlabel('Wavelength [nm]')
-ax.set_ylabel('Loss [Arbitrary units]')
-ax.set_xlim(910, 980)
-ax.set_ylim(0.4, 1.02)
-plt.xticks(fontsize=16)
-plt.yticks(fontsize=16)
-ax.legend(fontsize=13)
-#plt.title('Average run 1-3 fit',fontsize=16)
-ax.grid(True)
-
-plt.show()
-
-# Subtract the Exponential Fit from the data in the defined range
-subtracted_loss_st_te = avg_loss_st_te.copy()
-subtracted_loss_st_te[mask_st_te] -= exp_fit_te[mask_st_te]
-subtracted_loss_st_te[subtracted_loss_st_te < 0] = 0  # Remove negative values
-
-# Fit Gaussian to subtracted data for ST TE
-popt_gauss_te, _ = curve_fit(Gaussian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
-                             p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                             maxfev=5000)
-gauss_fit_te = Gaussian(wavelengths_st_te, *popt_gauss_te)
-
-# Fit Lorentzian to subtracted data for ST TE
-popt_lorentz_te, _ = curve_fit(Lorentzian, wavelengths_st_te[mask_st_te], subtracted_loss_st_te[mask_st_te],
-                               p0=[1, 933, 5, 0], bounds=([0, 910, 0, 0], [np.inf, 940, np.inf, np.inf]),
-                               maxfev=5000)
-lorentz_fit_te = Lorentzian(wavelengths_st_te, *popt_lorentz_te)
-
-# Plot the subtracted data with the fitted Gaussian and Lorentzian profiles
-fig, ax = plt.subplots(figsize=(10, 6))
-
-# Plot the subtracted data for ST TE
-ax.plot(wavelengths_st_te, subtracted_loss_st_te, 'o', color='black', label='Subtracted Data')
-
-# Plot the fitted Gaussian and Lorentzian profiles
-ax.plot(wavelengths_st_te, gauss_fit_te, '--', color='blue', label=f'Gaussian Fit ($\mu={popt_gauss_te[1]:.2f}$)', linewidth=3)
-ax.plot(wavelengths_st_te, lorentz_fit_te, '--', color='red', label=f'Lorentzian Fit ($\mu={popt_lorentz_te[1]:.2f}$)', linewidth=3)
+#Plotting TE data
+multiple_plot(wavelengths_st_te, avg_loss_st_te, exp_fit_te, combined_fit_te)
